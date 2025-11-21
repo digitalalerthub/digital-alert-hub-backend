@@ -5,15 +5,12 @@ import {
   forgotPassword,
   resetPassword,
 } from "../controllers/authController";
-import { verifyToken } from "../middleware/authMiddleware";
 
-const router = Router(); //Crea un router independiente.
-// Esto te permite modular el backend
-// (cada módulo tiene su propio archivo de rutas).
+const router = Router();
 
 router.post("/register", register);
 router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password/:token", resetPassword);
+router.post("/forgot-password", forgotPassword); // Genera token + envio de email
+router.post("/reset-password/:token", resetPassword); // Valida token y actualiza contraseña (cambio)
 
 export default router;
