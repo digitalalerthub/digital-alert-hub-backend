@@ -16,14 +16,17 @@ Este proyecto provee la API REST y la lógica del lado del servidor para **Digit
 | **PostgreSQL** | Base de datos relacional |
 | **JWT (jsonwebtoken)** | Autenticación segura mediante tokens |
 | **bcrypt** | Encriptación de contraseñas de usuarios |
+| **Passport.js** | Middleware de autenticación (Google OAuth 2.0) |
 | **dotenv** | Manejo de variables de entorno |
 | **cors** | Permite peticiones del frontend (React u otros) |
 | **nodemailer** | Envío de correos electrónicos (confirmación de cuenta, recuperación de contraseña, notificaciones) |
 
+---
 
 ##  Configuración del entorno
 
-1. **Instalar dependencias**
+### 1. **Instalar dependencias**
+
    ```bash
    npm install
    ```
@@ -32,21 +35,21 @@ Este proyecto provee la API REST y la lógica del lado del servidor para **Digit
    Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido (ajusta los valores según tu configuración):
 
    ```env
-   PORT=4000
-
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_NAME=nombre_base_de_datos
-   DB_USER=postgres
-   DB_PASSWORD=contraseña_postgres
-
-   JWT_SECRET=7a3d5e6b1f9c84c92f9e3e1b5f3b0a19d9c42b8275c2a9f5b7a08d9e3d7c1e2f
-
-   EMAIL_HOST=smtp.gmail.com
-   EMAIL_PORT=587
-   EMAIL_SECURE=false
-   EMAIL_USER=tu_correo@example.com
-   EMAIL_PASS=tu_contraseña_o_token_app
+    PORT=4000
+    DB_HOST=localhost
+    DB_PORT=5432
+    DB_NAME=digital_alert_hub
+    DB_USER=postgres
+    DB_PASSWORD=1234
+    JWT_SECRET=7a3d5e6b1f9c84c92f9e3e1b5f3b0a19d9c42b8275c2a9f5b7a08d9e3d7c1e2f
+    EMAIL_HOST=smtp.gmail.com
+    EMAIL_PORT=587
+    EMAIL_SECURE=false
+    EMAIL_USER=digitalalerthub@gmail.com
+    EMAIL_PASS=sbcg zaaw vrpy gbov
+    GOOGLE_CLIENT_ID=23961059594-dk5hh3h57404t7tajh66jf76pmr5ds26.apps.googleusercontent.com
+    GOOGLE_CLIENT_SECRET=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
+    GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
    ```
 
    >  Puedes generar tu propio JWT_SECRET ejecutando este comando en Git Bash o terminal:
@@ -116,13 +119,13 @@ Las migraciones y modelos se definen dentro de `/src/models` y pueden sincroniza
 ##  Dependencias principales
 
 ```bash
-npm install express sequelize pg pg-hstore jsonwebtoken bcrypt dotenv cors nodemailer
+npm install express sequelize pg pg-hstore jsonwebtoken bcrypt dotenv cors nodemailer passport passport-google-oauth20
 ```
 
 ##  Dependencias de desarrollo
 
 ```bash
-npm install -D typescript ts-node-dev @types/express @types/node @types/jsonwebtoken @types/bcrypt @types/cors
+npm install -D typescript ts-node-dev @types/express @types/node @types/jsonwebtoken @types/bcrypt @types/cors @types/passport @types/passport-google-oauth20
 ```
 
 ---
