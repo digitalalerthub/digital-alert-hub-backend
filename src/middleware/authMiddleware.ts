@@ -1,40 +1,51 @@
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 
-//  Creamos una interfaz personalizada para extender Request
+// Interfaz personalizada para extender Request
 interface CustomRequest extends Request {
-  // Esto nos permite agregar propiedades nuevas como userId y rol sin errores de tipo
   userId?: number;
   rol?: string;
 }
 
-//  Middleware para verificar el token JWT en las rutas protegidas
+// Middleware para verificar el token JWT en las rutas protegidas
 export const verifyToken = (
   req: CustomRequest,
   res: Response,
   next: NextFunction
 ) => {
-  // Extrae el encabezado "Authorization" del request
-  const authHeader = req.headers.authorization; // Normalmente viene así: "Bearer eyJhbGciOiJIUzI1NiIsInR..."
+  const authHeader = req.headers.authorization;
 
   if (!authHeader) {
-    // Si no viene el token en la cabecera, se rechaza la solicitud
     return res.status(403).json({ message: "Token requerido" });
   }
 
-  const token = authHeader.split(" ")[1]; // Divide el valor en dos: ["Bearer", "token"] y toma la segunda parte
+  const token = authHeader.split(" ")[1];
 
   try {
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET as string
-    ) as JwtPayload; // Verifica y decodifica el token usando la clave secreta del .env
+    ) as JwtPayload;
+
+    // IMPORTANTE: Verifica qué campos tiene el token
+    // Puede ser id_usuario en lugar de id
+    const userId = decoded.id || decoded.id_usuario;
+    const userRol = decoded.rol || decoded.id_rol;
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ message: "Token inválido - falta ID de usuario" });
+    }
 
     // Guarda los datos del usuario en req.user
-    (req as any).user = { id: decoded.id, rol: decoded.rol };
+    (req as any).user = {
+      id: userId,
+      rol: userRol,
+    };
 
     next();
   } catch (error) {
-    res.status(401).json({ message: "Token inválido" }); // Si el token está vencido o es inválido
+    res.status(401).json({ message: "Token inválido o expirado" });
   }
 };
