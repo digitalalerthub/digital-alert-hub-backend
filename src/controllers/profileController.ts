@@ -20,7 +20,7 @@ export const getProfile = async (req: Request, res: Response) => {
       console.log(
         "📄 Datos del usuario:",
         JSON.stringify(user.toJSON(), null, 2)
-      ); 
+      );
     }
 
     if (!user) {

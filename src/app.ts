@@ -6,6 +6,9 @@ import authRoutes from "./routes/authRoutes";
 import alertRoutes from "./routes/alertRoutes";
 import statsRoutes from "./routes/statsRoutes";
 import profileRoutes from "./routes/profileRoutes";
+import userRoutes from "./routes/userRoutes";
+import roleRoutes from "./routes/roleRoutes";
+
 
 import authGoogleRoutes from "./routes/authGoogle"; // <-- IMPORTANTE
 import "../src/config/googleStrategy"; // <-- INICIALIZA PASSPORT GOOGLE (línea 10)
@@ -22,6 +25,10 @@ app.use("/api/auth", authGoogleRoutes); // <-- AÑADE Google Login (línea 20)
 app.use("/api/alerts", alertRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/profile", profileRoutes);
+
+app.use("/api/users", userRoutes);
+app.use("/api/roles", roleRoutes);
+
 
 // ENDPOINT RAÍZ
 app.get("/", (req: Request, res: Response) => {
