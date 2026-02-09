@@ -125,7 +125,7 @@ npm install express sequelize pg pg-hstore jsonwebtoken bcrypt dotenv cors nodem
 ##  Dependencias de desarrollo
 
 ```bash
-npm install -D typescript ts-node-dev @types/express @types/node @types/jsonwebtoken @types/bcrypt @types/cors @types/passport @types/passport-google-oauth20
+ npm install -D typescript ts-node-dev @types/express @types/node @types/jsonwebtoken @types/bcrypt @types/cors @types/passport @types/passport-google-oauth20
 ```
 
 ---
