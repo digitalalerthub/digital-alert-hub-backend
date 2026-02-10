@@ -41,7 +41,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       email,
       contrasena: hashedPassword,
       telefono,
-      id_rol: id_rol || 2,
+      id_rol: id_rol || 1,
       estado: true,
     });
 
