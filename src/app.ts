@@ -14,7 +14,7 @@ import roleRoutes from "./routes/roleRoutes";
 
 
 import authGoogleRoutes from "./routes/authGoogle"; // <-- IMPORTANTE
-import "../src/config/googleStrategy"; // <-- INICIALIZA PASSPORT GOOGLE (línea 10)
+import "./config/googleStrategy"; // <-- INICIALIZA PASSPORT GOOGLE
 
 const app: Application = express();
 
