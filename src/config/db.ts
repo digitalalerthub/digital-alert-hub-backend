@@ -14,6 +14,12 @@ export const sequelize = new Sequelize(
     port: Number(process.env.DB_PORT) || 5432,
     dialect: "postgres",
     logging: process.env.NODE_ENV === "development", // Activa los logs de SQL solo si el entorno es de desarrollo (útil para depurar)
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
+    },
   }
 );
 
