@@ -33,24 +33,8 @@ router.get(
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     
-    // Devolver una página HTML que guarda el token y redirija
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Autenticando...</title>
-        </head>
-        <body>
-          <script>
-            // Guardar token en localStorage
-            localStorage.setItem('token', '${token}');
-            // Redirigir al dashboard
-            window.location.href = '${frontendUrl}/dashboard';
-          </script>
-          <p>Redirigiendo...</p>
-        </body>
-      </html>
-    `);
+    // Redirigir al callback del frontend con el token
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
   }
 );
 
