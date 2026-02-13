@@ -7,8 +7,16 @@ import app from "./app";                            //  Importamos la app princi
 
 const PORT = process.env.PORT || 4000;             //  Definimos el puerto en el que correrá el servidor (por defecto 4000)
 
-connectDB().then(() => {                    //  Conectamos a la base de datos y, si todo sale bien, levantamos el servidor
-  app.listen(PORT, () => {                //  Una vez la conexión a la BD está establecida, iniciamos el servidor Express
-    console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
-  });
+// Iniciar el servidor ahora, sin esperar la BD
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
+
+// Conectar a BD en background
+connectDB()
+  .then(() => {
+    console.log("✅ Base de datos conectada exitosamente");
+  })
+  .catch((error) => {
+    console.error("❌ Error conectando a la base de datos:", error);
+  });
