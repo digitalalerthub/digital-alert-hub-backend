@@ -5,7 +5,7 @@ import { connectDB } from "./config/db";               //  Importamos la funció
 
 import app from "./app";                            //  Importamos la app principal (donde están las rutas y middlewares)
 
-const PORT = process.env.PORT || 3001;             //  Definimos el puerto en el que correrá el servidor (por defecto 3001)
+const PORT = process.env.PORT || 4000;             //  Definimos el puerto en el que correrá el servidor (por defecto 4000)
 
 connectDB().then(() => {                    //  Conectamos a la base de datos y, si todo sale bien, levantamos el servidor
   app.listen(PORT, () => {                //  Una vez la conexión a la BD está establecida, iniciamos el servidor Express
