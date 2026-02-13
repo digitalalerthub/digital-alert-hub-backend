@@ -46,4 +46,9 @@ app.get("/", (req: Request, res: Response) => {
   res.send("API DigitalAlertHub activa");
 });
 
+// HEALTH CHECK - Render necesita esto para verificar que el servidor está vivo
+app.get("/health", (req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});
+
 export default app;
