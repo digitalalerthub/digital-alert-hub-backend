@@ -15,10 +15,10 @@ export const sequelize = new Sequelize(
     dialect: "postgres",
     logging: process.env.NODE_ENV === "development", // Activa los logs de SQL solo si el entorno es de desarrollo (útil para depurar)
     dialectOptions: {
-      ssl: {
+      ssl: process.env.NODE_ENV === "production" ? {
         require: true,
         rejectUnauthorized: false,
-      },
+      } : false, // SSL solo en producción
     },
   }
 );
