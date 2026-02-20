@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
   service: "gmail",
   host: process.env.EMAIL_HOST, // ejemplo: smtp.gmail.com, smtp.office365.com, mail.tudominio.com
   port: Number(process.env.EMAIL_PORT) || 587, // usa 465 si quieres SSL
-  secure: process.env.EMAIL_SECURE === "false", // true para SSL (puerto 465), false para STARTTLS (587)
+  secure: process.env.EMAIL_SECURE === "true", // true para SSL (puerto 465), false para STARTTLS (587)
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,

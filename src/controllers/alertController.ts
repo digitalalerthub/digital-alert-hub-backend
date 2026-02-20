@@ -24,7 +24,7 @@ export const createAlerta = async (req: Request, res: Response) => {
       .status(201)
       .json({ message: "Alerta creada con éxito", alert: newAlerta }); // Respondemos con código 201 (creado exitosamente) y la alerta creada
   } catch (error) {
-    res.status(500).json({ error: "Error al crear alerta" }); // Si ocurre algún error (por ejemplo, falta un campo o falla la BD)
+    res.status(500).json({ error: "Error al crear alerta" , details: error}); // Si ocurre algún error (por ejemplo, falta un campo o falla la BD)
     console.error(error); // Logueamos el error en la consola para depuración
   }
 };
