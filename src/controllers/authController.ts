@@ -22,6 +22,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Verificar conexión de transporter
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ Error en configuración de Nodemailer:", error);
+  } else {
+    console.log("✅ Nodemailer configurado correctamente");
+  }
+});
+
 // Registro
 export const register = async (req: Request, res: Response): Promise<void> => {
   const { nombre, apellido, email, contrasena, telefono, id_rol } = req.body;
@@ -111,11 +120,16 @@ export const forgotPassword = async (
   const { email } = req.body;
 
   try {
+    console.log("📧 Iniciando recuperación de contraseña para:", email);
+    
     const user = await Usuario.findOne({ where: { email } });
     if (!user) {
+      console.log("❌ Usuario no encontrado:", email);
       res.status(404).json({ message: "Usuario no encontrado" });
       return;
     }
+
+    console.log("✅ Usuario encontrado:", user.email);
 
     // Generar token temporal de 15 minutos
     const resetToken = jwt.sign(
@@ -124,11 +138,13 @@ export const forgotPassword = async (
       { expiresIn: "15m" }
     );
 
-    // const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    console.log("🔗 Link de recuperación:", resetLink);
 
     // Enviar correo
-    await transporter.sendMail({
+    console.log("📤 Intentando enviar correo desde:", process.env.EMAIL_USER);
+    
+    const info = await transporter.sendMail({
       from: `"Digital Alert Hub" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Recuperación de contraseña",
@@ -140,9 +156,12 @@ export const forgotPassword = async (
       `,
     });
 
+    console.log("✅ Correo enviado:", info.messageId);
     res.json({ message: "Correo de recuperación enviado correctamente" });
   } catch (error: any) {
-    console.error("Error en forgotPassword:", error);
+    console.error("❌ Error en forgotPassword:", error);
+    console.error("Error code:", error.code);
+    console.error("Error response:", error.response);
     res.status(500).json({
       message: "Error al enviar el correo",
       error: error.message || error,
