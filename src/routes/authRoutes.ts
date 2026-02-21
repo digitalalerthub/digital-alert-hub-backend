@@ -4,6 +4,7 @@ import {
   login,
   forgotPassword,
   resetPassword,
+  verifyAccount,
 } from "../controllers/authController";
 
 const router = Router(); //Crea un router independiente.
@@ -14,5 +15,6 @@ router.post("/register", register);
 router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
+router.get("/verify-account/:token", verifyAccount);
 
 export default router;

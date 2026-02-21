@@ -9,6 +9,12 @@ interface JWTPayload {
   rol: number;
 }
 
+interface EmailVerificationPayload {
+  id: number;
+  email: string;
+  type: "email_verification";
+}
+
 interface GoogleTokenResponse {
   access_token?: string;
   error?: string;
@@ -69,15 +75,7 @@ const getGmailAccessToken = async (): Promise<string> => {
   return data.access_token;
 };
 
-const buildResetMailRaw = (to: string, from: string, resetLink: string): string => {
-  const subject = "Recuperacion de contrasena";
-  const html = `
-    <h2>Recuperacion de contrasena</h2>
-    <p>Haz clic en el siguiente enlace para restablecer tu contrasena:</p>
-    <a href="${resetLink}" target="_blank">${resetLink}</a>
-    <p>Este enlace expirara en 15 minutos.</p>
-  `.trim();
-
+const buildMailRaw = (to: string, from: string, subject: string, html: string): string => {
   const rawMessage = [
     `From: ${from}`,
     `To: ${to}`,
@@ -91,9 +89,10 @@ const buildResetMailRaw = (to: string, from: string, resetLink: string): string 
   return toBase64Url(rawMessage);
 };
 
-const sendPasswordResetEmail = async (
+const sendGmailEmail = async (
   to: string,
-  resetLink: string
+  subject: string,
+  html: string
 ): Promise<GmailSendResponse> => {
   const from = process.env.GOOGLE_GMAIL_SENDER || process.env.EMAIL_USER;
 
@@ -102,7 +101,7 @@ const sendPasswordResetEmail = async (
   }
 
   const accessToken = await getGmailAccessToken();
-  const raw = buildResetMailRaw(to, from, resetLink);
+  const raw = buildMailRaw(to, from, subject, html);
 
   const response = await fetch(gmailSendUrl, {
     method: "POST",
@@ -120,6 +119,38 @@ const sendPasswordResetEmail = async (
   }
 
   return data;
+};
+
+const sendPasswordResetEmail = async (
+  to: string,
+  resetLink: string
+): Promise<GmailSendResponse> => {
+  const subject = "Recuperacion de contrasena";
+  const html = `
+    <h2>Recuperacion de contrasena</h2>
+    <p>Haz clic en el siguiente enlace para restablecer tu contrasena:</p>
+    <a href="${resetLink}" target="_blank">${resetLink}</a>
+    <p>Este enlace expirara en 15 minutos.</p>
+  `.trim();
+
+  return sendGmailEmail(to, subject, html);
+};
+
+const sendAccountCreatedEmail = async (
+  to: string,
+  nombre: string,
+  verificationLink: string
+): Promise<GmailSendResponse> => {
+  const subject = "Confirma tu cuenta";
+  const html = `
+    <h2>Bienvenido a Digital Alert Hub</h2>
+    <p>Hola ${nombre}, tu cuenta fue creada correctamente.</p>
+    <p>Para activarla, confirma tu correo en el siguiente enlace:</p>
+    <a href="${verificationLink}" target="_blank">${verificationLink}</a>
+    <p>Este enlace expira en 24 horas.</p>
+  `.trim();
+
+  return sendGmailEmail(to, subject, html);
 };
 
 // Registro
@@ -141,12 +172,39 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       email,
       contrasena: hashedPassword,
       telefono,
-      id_rol: id_rol || 1,
-      estado: true,
+      id_rol: id_rol || 2,
+      estado: false,
     });
 
+    const verificationToken = jwt.sign(
+      { id: user.id_usuario, email: user.email, type: "email_verification" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "24h" }
+    );
+
+    const backendBaseUrl =
+      process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+    const verificationLink = `${backendBaseUrl}/api/auth/verify-account/${verificationToken}`;
+
+    let emailSent = false;
+
+    try {
+      const info = await sendAccountCreatedEmail(
+        user.email,
+        user.nombre,
+        verificationLink
+      );
+      console.log("Correo de confirmacion enviado:", info.id);
+      emailSent = true;
+    } catch (mailError) {
+      console.error("No se pudo enviar correo de confirmacion:", mailError);
+    }
+
     res.status(201).json({
-      message: "Usuario registrado exitosamente",
+      message: emailSent
+        ? "Usuario registrado. Revisa tu correo para activar la cuenta."
+        : "Usuario registrado, pero no se pudo enviar el correo de activacion.",
+      email_sent: emailSent,
       user: {
         id_usuario: user.id_usuario,
         nombre: user.nombre,
@@ -177,6 +235,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (!user.estado) {
+      res.status(403).json({
+        message:
+          "Debes confirmar tu correo para activar la cuenta antes de iniciar sesion.",
+      });
+      return;
+    }
+
     const payload: JWTPayload = {
       id: user.id_usuario,
       email: user.email,
@@ -200,6 +266,46 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error("Error en login:", error);
     res.status(500).json({ message: "Error en el servidor" });
+  }
+};
+
+export const verifyAccount = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { token } = req.params;
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string
+    ) as EmailVerificationPayload;
+
+    if (decoded.type !== "email_verification") {
+      res.status(400).json({ message: "Token de verificacion invalido" });
+      return;
+    }
+
+    const user = await Usuario.findByPk(decoded.id);
+    if (!user || user.email !== decoded.email) {
+      res.status(404).json({ message: "Usuario no encontrado" });
+      return;
+    }
+
+    if (!user.estado) {
+      await user.update({ estado: true });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (frontendUrl) {
+      res.redirect(`${frontendUrl}/login?verified=1`);
+      return;
+    }
+
+    res.json({ message: "Cuenta verificada correctamente" });
+  } catch (error) {
+    console.error("Error en verifyAccount:", error);
+    res.status(400).json({ message: "Token invalido o expirado" });
   }
 };
 
