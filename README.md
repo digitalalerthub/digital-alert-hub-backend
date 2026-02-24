@@ -51,10 +51,13 @@ Este proyecto provee la API REST y la logica del lado del servidor para **Digita
     EMAIL_SECURE=false
     EMAIL_USER=tu_correo@dominio.com
     EMAIL_PASS=tu_app_password_o_token
-    GOOGLE_CLIENT_ID=tu_google_client_id
-    GOOGLE_CLIENT_SECRET=tu_google_client_secret
-    GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
-   ```
+	    GOOGLE_CLIENT_ID=tu_google_client_id
+	    GOOGLE_CLIENT_SECRET=tu_google_client_secret
+	    GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
+	    CLOUDINARY_CLOUD_NAME=tu_cloud_name
+	    CLOUDINARY_API_KEY=tu_api_key
+	    CLOUDINARY_API_SECRET=tu_api_secret
+	   ```
 
    >  Puedes generar tu propio JWT_SECRET ejecutando este comando en Git Bash o terminal:
    >
@@ -117,6 +120,14 @@ const transporter = nodemailer.createTransport({
 
 El proyecto utiliza **PostgreSQL** y **Sequelize** para la gestion ORM.
 Las migraciones y modelos se definen dentro de `/src/models` y pueden sincronizarse automaticamente al iniciar el servidor.
+
+Para soporte de evidencia multimedia en alertas (URL y tipo), asegure que la tabla `alertas` tenga estas columnas en Neon/produccion:
+
+```sql
+ALTER TABLE alertas
+ADD COLUMN IF NOT EXISTS evidencia_url VARCHAR(500),
+ADD COLUMN IF NOT EXISTS evidencia_tipo VARCHAR(50);
+```
 
 ---
 
