@@ -1,25 +1,27 @@
 import { Request, Response } from "express";
 
-type NominatimSearchResult = {
-  display_name: string;
-  lat: string;
-  lon: string;
-  importance?: number;
+type GeoapifyResult = {
+  formatted?: string;
+  lat?: number | string;
+  lon?: number | string;
+  street?: string;
+  housenumber?: string;
+  suburb?: string;
+  district?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  county?: string;
+  state?: string;
 };
 
-type NominatimReverseResult = {
-  display_name?: string;
-  address?: {
-    road?: string;
-    residential?: string;
-    neighbourhood?: string;
-    suburb?: string;
-  };
+type GeoapifyResponse = {
+  results?: GeoapifyResult[];
+  features?: Array<{
+    properties?: GeoapifyResult;
+  }>;
 };
-
-const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
-const DEFAULT_CITY_HINT = "Medellin, Antioquia, Colombia";
-const GEO_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type SearchPayload = {
   query: string;
@@ -31,16 +33,44 @@ type SearchPayload = {
   }>;
 };
 
-type ReversePayload = NominatimReverseResult;
+type ReversePayload = {
+  display_name?: string;
+  address?: {
+    road?: string;
+    residential?: string;
+    pedestrian?: string;
+    footway?: string;
+    house_number?: string;
+    neighbourhood?: string;
+    suburb?: string;
+    city_district?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+  };
+};
 
 type CacheEntry<T> = {
   expiresAt: number;
   value: T;
 };
 
+type Candidate = {
+  display_name: string;
+  lat: string;
+  lon: string;
+  usedQuery: string;
+  score: number;
+};
+
+const GEOAPIFY_BASE = "https://api.geoapify.com/v1/geocode";
+const DEFAULT_CITY_HINT = "Medellin, Antioquia, Colombia";
+const GEO_CACHE_TTL_MS = 5 * 60 * 1000;
+const MEDELLIN_CENTER = { lat: 6.2442, lon: -75.5812 };
+
 const searchCache = new Map<string, CacheEntry<SearchPayload>>();
 const reverseCache = new Map<string, CacheEntry<ReversePayload>>();
-const MEDELLIN_CENTER = { lat: 6.2442, lon: -75.5812 };
 
 const getFromCache = <T>(cache: Map<string, CacheEntry<T>>, key: string): T | null => {
   const entry = cache.get(key);
@@ -58,52 +88,6 @@ const saveToCache = <T>(cache: Map<string, CacheEntry<T>>, key: string, value: T
     expiresAt: Date.now() + GEO_CACHE_TTL_MS,
   });
 };
-
-const buildAddressVariants = (raw: string): string[] => {
-  const clean = raw
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\s*,\s*/g, ", ")
-    .replace(/\s*#\s*/g, " # ")
-    .trim();
-
-  const noHash = clean.replace(/\s*#\s*/g, " ");
-  const withNo = clean.replace(/\s*#\s*/g, " No ");
-  const noCommas = withNo.replace(/,/g, " ");
-  const hyphenNormalized = clean.replace(/\s*-\s*/g, "-");
-  const noHashHyphen = hyphenNormalized.replace(/\s*#\s*/g, " ");
-  const withNoHyphen = hyphenNormalized.replace(/\s*#\s*/g, " No ");
-  const numberSeparated = withNoHyphen.replace(/(\d+)-(\d+)/g, "$1 $2");
-
-  const candidates = [
-    clean,
-    hyphenNormalized,
-    withNo,
-    withNoHyphen,
-    noHash,
-    noHashHyphen,
-    noCommas,
-    numberSeparated,
-    `${withNo}, ${DEFAULT_CITY_HINT}`,
-    `${noHash}, ${DEFAULT_CITY_HINT}`,
-    `${hyphenNormalized}, ${DEFAULT_CITY_HINT}`,
-    `${withNoHyphen}, ${DEFAULT_CITY_HINT}`,
-    `${noHashHyphen}, ${DEFAULT_CITY_HINT}`,
-    `${numberSeparated}, ${DEFAULT_CITY_HINT}`,
-    `${clean}, Medellin, Colombia`,
-    `${clean}, Medellín, Colombia`,
-    `${withNo}, Colombia`,
-  ]
-    .map((q) => q.trim().replace(/\s+/g, " "))
-    .filter((q) => q.length >= 3);
-
-  return Array.from(new Set(candidates));
-};
-
-const getHeaders = () => ({
-  "User-Agent": "DigitalAlertHub/1.0 (contacto: digitalalerthub@gmail.com)",
-  "Accept-Language": "es",
-});
 
 const parseLimit = (limitRaw: unknown): number => {
   const n = Number(limitRaw);
@@ -146,8 +130,107 @@ const distanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): num
   return 6371 * c;
 };
 
+const buildAddressVariants = (raw: string): string[] => {
+  const clean = raw
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s*#\s*/g, " # ")
+    .trim();
+
+  const noHash = clean.replace(/\s*#\s*/g, " ");
+  const withNo = clean.replace(/\s*#\s*/g, " No ");
+  const noCommas = withNo.replace(/,/g, " ");
+  const hyphenNormalized = clean.replace(/\s*-\s*/g, "-");
+  const withNoHyphen = hyphenNormalized.replace(/\s*#\s*/g, " No ");
+  const carreraMatch = clean.match(
+    /(?:^|\s)(?:carrera|cra|kr|cr)\s*([0-9]+[a-z]?)\s*#\s*([0-9]+[a-z]?)/i
+  );
+  const calleMatch = clean.match(/(?:^|\s)(?:calle|cl)\s*([0-9]+[a-z]?)\s*#\s*([0-9]+[a-z]?)/i);
+
+  const intersectionVariants: string[] = [];
+  if (carreraMatch) {
+    const cra = carreraMatch[1].toUpperCase();
+    const cl = carreraMatch[2].toUpperCase();
+    intersectionVariants.push(`Carrera ${cra} con Calle ${cl}`);
+  }
+  if (calleMatch) {
+    const cl = calleMatch[1].toUpperCase();
+    const cra = calleMatch[2].toUpperCase();
+    intersectionVariants.push(`Calle ${cl} con Carrera ${cra}`);
+  }
+
+  const candidates = [
+    clean,
+    hyphenNormalized,
+    withNo,
+    noHash,
+    noCommas,
+    withNoHyphen,
+    `${clean}, ${DEFAULT_CITY_HINT}`,
+    `${withNo}, ${DEFAULT_CITY_HINT}`,
+    `${clean}, Medellin, Colombia`,
+    `${clean}, Colombia`,
+    ...intersectionVariants,
+    ...intersectionVariants.map((q) => `${q}, ${DEFAULT_CITY_HINT}`),
+    ...intersectionVariants.map((q) => `${q}, Medellin, Colombia`),
+  ]
+    .map((q) => q.trim().replace(/\s+/g, " "))
+    .filter((q) => q.length >= 3);
+
+  return Array.from(new Set(candidates));
+};
+
+const extractGeoapifyResults = (payload: GeoapifyResponse): GeoapifyResult[] => {
+  if (Array.isArray(payload.results)) {
+    return payload.results;
+  }
+
+  if (!Array.isArray(payload.features)) {
+    return [];
+  }
+
+  return payload.features
+    .map((feature) => feature.properties)
+    .filter((properties): properties is GeoapifyResult => Boolean(properties));
+};
+
+const buildDisplayName = (item: GeoapifyResult): string => {
+  if (item.formatted && item.formatted.trim()) return item.formatted.trim();
+
+  const street = item.street?.trim() || "";
+  const house = item.housenumber?.trim() || "";
+  const sector = item.suburb?.trim() || item.district?.trim() || "";
+  const city =
+    item.city?.trim() ||
+    item.town?.trim() ||
+    item.village?.trim() ||
+    item.municipality?.trim() ||
+    "";
+
+  const streetPart = [street, house ? `# ${house}` : ""].filter(Boolean).join(" ").trim();
+  const parts = [streetPart, sector, city].filter(Boolean);
+  return parts.join(", ");
+};
+
+const normalizeSearchResult = (
+  item: GeoapifyResult
+): { display_name: string; lat: string; lon: string } | null => {
+  const lat = Number(item.lat);
+  const lon = Number(item.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+
+  return {
+    display_name: buildDisplayName(item),
+    lat: String(lat),
+    lon: String(lon),
+  };
+};
+
 const scoreSearchResult = (
-  result: NominatimSearchResult,
+  result: { display_name: string; lat: string; lon: string },
   query: string,
   strict: boolean
 ): number => {
@@ -156,7 +239,7 @@ const scoreSearchResult = (
   const alphaTokens = extractAlphaTokens(query);
   const numericTokens = extractNumericTokens(query);
 
-  let score = (result.importance || 0) * 100;
+  let score = 0;
 
   if (dn.includes("medellin")) score += 60;
   if (dn.includes("antioquia")) score += 24;
@@ -180,9 +263,7 @@ const scoreSearchResult = (
   const lon = Number(result.lon);
   if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
     const km = distanceKm(lat, lon, MEDELLIN_CENTER.lat, MEDELLIN_CENTER.lon);
-    // Acerca resultados al valle de aburra si no hay ciudad explicita.
-    const proximityBonus = Math.max(0, 35 - km);
-    score += proximityBonus;
+    score += Math.max(0, 35 - km);
   }
 
   if (strict) {
@@ -196,19 +277,64 @@ const scoreSearchResult = (
   return score;
 };
 
+const buildGeoapifyUrl = (
+  endpoint: "search" | "autocomplete" | "reverse",
+  params: Record<string, string>
+): URL => {
+  const apiKey = process.env.GEOAPIFY_API_KEY || "";
+  const url = new URL(`${GEOAPIFY_BASE}/${endpoint}`);
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  url.searchParams.set("format", "json");
+  url.searchParams.set("lang", "es");
+  url.searchParams.set("apiKey", apiKey);
+  return url;
+};
+
+const mapToReversePayload = (item: GeoapifyResult): ReversePayload => {
+  const city = item.city || item.town || item.village || item.municipality;
+  return {
+    display_name: buildDisplayName(item),
+    address: {
+      road: item.street,
+      residential: item.street,
+      pedestrian: item.street,
+      house_number: item.housenumber,
+      neighbourhood: item.suburb || item.district,
+      suburb: item.suburb,
+      city_district: item.district,
+      city,
+      town: item.town || city,
+      village: item.village,
+      municipality: item.municipality || item.county || item.state,
+    },
+  };
+};
+
 export const searchAddress = async (req: Request, res: Response) => {
   try {
+    const apiKey = process.env.GEOAPIFY_API_KEY;
+    if (!apiKey) {
+      return res
+        .status(503)
+        .json({ message: "Falta configurar GEOAPIFY_API_KEY en el backend" });
+    }
+
     const query = String(req.query.q || "").trim();
     if (!query) {
       return res.status(400).json({ message: "Parametro q requerido" });
     }
 
     const limit = parseLimit(req.query.limit);
+    const providerLimit = Math.max(limit, 6);
     const strict = String(req.query.strict || "").toLowerCase() === "true";
     const variantsBase = strict
       ? Array.from(new Set([query, `${query}, ${DEFAULT_CITY_HINT}`]))
       : buildAddressVariants(query);
-    const variants = variantsBase.slice(0, strict ? 2 : 8);
+    const variants = variantsBase.slice(0, strict ? 2 : 6);
 
     const cacheKey = `search:${query.toLowerCase()}:limit=${limit}:strict=${strict}`;
     const cached = getFromCache(searchCache, cacheKey);
@@ -216,77 +342,91 @@ export const searchAddress = async (req: Request, res: Response) => {
       return res.json(cached);
     }
 
-    const collected: Array<NominatimSearchResult & { usedQuery: string; score: number }> = [];
+    const collected: Candidate[] = [];
+    const endpoints: Array<"autocomplete" | "search"> = strict
+      ? ["autocomplete", "search"]
+      : ["search"];
 
     for (const variant of variants) {
-      const url = new URL(`${NOMINATIM_BASE}/search`);
-      url.searchParams.set("q", variant);
-      url.searchParams.set("format", "jsonv2");
-      url.searchParams.set("addressdetails", "1");
-      url.searchParams.set("countrycodes", "co");
-      url.searchParams.set("dedupe", "1");
-      url.searchParams.set("limit", String(limit));
-      // Sesgo a Medellin sin bloquear otros resultados.
-      url.searchParams.set("viewbox", "-75.73,6.34,-75.47,6.14");
-      url.searchParams.set("bounded", strict ? "1" : "0");
-      url.searchParams.set("accept-language", "es");
-
-      const response = await fetch(url.toString(), { headers: getHeaders() });
-      if (response.status === 429) {
-        continue;
-      }
-      if (!response.ok) continue;
-
-      const data = (await response.json()) as NominatimSearchResult[];
-      if (!Array.isArray(data) || data.length === 0) continue;
-
-      for (const item of data) {
-        collected.push({
-          ...item,
-          usedQuery: variant,
-          score: scoreSearchResult(item, query, strict),
+      for (const endpoint of endpoints) {
+        const url = buildGeoapifyUrl(endpoint, {
+          text: variant,
+          limit: String(providerLimit),
+          filter: "countrycode:co",
+          bias: `proximity:${MEDELLIN_CENTER.lon},${MEDELLIN_CENTER.lat}`,
         });
-      }
-    }
 
-    if (collected.length > 0) {
-      const dedupedMap = new Map<string, (typeof collected)[number]>();
-      for (const item of collected) {
-        const key = `${item.lat},${item.lon}`;
-        const existing = dedupedMap.get(key);
-        if (!existing || item.score > existing.score) {
-          dedupedMap.set(key, item);
+        const response = await fetch(url.toString());
+        if (response.status === 429) {
+          continue;
+        }
+        if (!response.ok) {
+          continue;
+        }
+
+        const data = (await response.json()) as GeoapifyResponse;
+        const items = extractGeoapifyResults(data);
+        if (items.length === 0) continue;
+
+        for (const item of items) {
+          const normalized = normalizeSearchResult(item);
+          if (!normalized) continue;
+
+          collected.push({
+            ...normalized,
+            usedQuery: variant,
+            score: scoreSearchResult(normalized, query, strict),
+          });
         }
       }
-
-      const ordered = Array.from(dedupedMap.values())
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit);
-
-      const payload: SearchPayload = {
-        query,
-        usedQuery: ordered[0]?.usedQuery,
-        results: ordered.map((r) => ({
-          display_name: r.display_name,
-          lat: r.lat,
-          lon: r.lon,
-        })),
-      };
-      saveToCache(searchCache, cacheKey, payload);
-      return res.json(payload);
     }
 
-    const emptyPayload: SearchPayload = { query, results: [] };
-    saveToCache(searchCache, cacheKey, emptyPayload);
-    return res.json(emptyPayload);
+    if (collected.length === 0) {
+      const emptyPayload: SearchPayload = { query, results: [] };
+      saveToCache(searchCache, cacheKey, emptyPayload);
+      return res.json(emptyPayload);
+    }
+
+    const dedupedMap = new Map<string, Candidate>();
+    for (const item of collected) {
+      const key = `${item.lat},${item.lon}`;
+      const existing = dedupedMap.get(key);
+      if (!existing || item.score > existing.score) {
+        dedupedMap.set(key, item);
+      }
+    }
+
+    const ordered = Array.from(dedupedMap.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    const payload: SearchPayload = {
+      query,
+      usedQuery: ordered[0]?.usedQuery,
+      results: ordered.map((item) => ({
+        display_name: item.display_name,
+        lat: item.lat,
+        lon: item.lon,
+      })),
+    };
+
+    saveToCache(searchCache, cacheKey, payload);
+    return res.json(payload);
   } catch (error) {
     console.error("Error en busqueda de direcciones:", error);
-    res.status(500).json({ message: "Error buscando direcciones" });
+    return res.status(500).json({ message: "Error buscando direcciones" });
   }
 };
 
 export const reverseAddress = async (req: Request, res: Response) => {
   try {
+    const apiKey = process.env.GEOAPIFY_API_KEY;
+    if (!apiKey) {
+      return res
+        .status(503)
+        .json({ message: "Falta configurar GEOAPIFY_API_KEY en el backend" });
+    }
+
     const lat = String(req.query.lat || "").trim();
     const lon = String(req.query.lon || "").trim();
 
@@ -300,40 +440,28 @@ export const reverseAddress = async (req: Request, res: Response) => {
       return res.json(cached);
     }
 
-    const zooms = ["18", "17", "16", "15", "14"];
-    for (const zoom of zooms) {
-      const url = new URL(`${NOMINATIM_BASE}/reverse`);
-      url.searchParams.set("format", "jsonv2");
-      url.searchParams.set("lat", lat);
-      url.searchParams.set("lon", lon);
-      url.searchParams.set("zoom", zoom);
-      url.searchParams.set("addressdetails", "1");
-      url.searchParams.set("accept-language", "es");
+    const url = buildGeoapifyUrl("reverse", {
+      lat,
+      lon,
+      limit: "1",
+    });
 
-      const response = await fetch(url.toString(), { headers: getHeaders() });
-      if (response.status === 429) {
-        continue;
-      }
-      if (!response.ok) continue;
-
-      const data = (await response.json()) as NominatimReverseResult;
-      const address = data.address || {};
-      const hasUsefulAddress =
-        Boolean(address.road) ||
-        Boolean(address.residential) ||
-        Boolean(address.neighbourhood) ||
-        Boolean(address.suburb) ||
-        Boolean(data.display_name);
-
-      if (hasUsefulAddress) {
-        saveToCache(reverseCache, cacheKey, data);
-        return res.json(data);
-      }
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      return res.status(404).json({ message: "No se encontro direccion para ese punto" });
     }
 
-    return res.status(404).json({ message: "No se encontro direccion para ese punto" });
+    const data = (await response.json()) as GeoapifyResponse;
+    const item = extractGeoapifyResults(data)[0];
+    if (!item) {
+      return res.status(404).json({ message: "No se encontro direccion para ese punto" });
+    }
+
+    const payload = mapToReversePayload(item);
+    saveToCache(reverseCache, cacheKey, payload);
+    return res.json(payload);
   } catch (error) {
     console.error("Error en geocodificacion inversa:", error);
-    res.status(500).json({ message: "Error obteniendo direccion" });
+    return res.status(500).json({ message: "Error obteniendo direccion" });
   }
 };

@@ -40,24 +40,25 @@ Este proyecto provee la API REST y la logica del lado del servidor para **Digita
 
    ```env
    PORT=4000
-    DB_HOST=localhost
-    DB_PORT=5432
-    DB_NAME=digital_alert_hub
-    DB_USER=postgres
-    DB_PASSWORD=tu_password_bd
-    JWT_SECRET=tu_jwt_secret
-    EMAIL_HOST=smtp.gmail.com
-    EMAIL_PORT=587
-    EMAIL_SECURE=false
-    EMAIL_USER=tu_correo@dominio.com
-    EMAIL_PASS=tu_app_password_o_token
-	    GOOGLE_CLIENT_ID=tu_google_client_id
-	    GOOGLE_CLIENT_SECRET=tu_google_client_secret
-	    GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
-	    CLOUDINARY_CLOUD_NAME=tu_cloud_name
-	    CLOUDINARY_API_KEY=tu_api_key
-	    CLOUDINARY_API_SECRET=tu_api_secret
-	   ```
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=digital_alert_hub
+   DB_USER=postgres
+   DB_PASSWORD=tu_password_bd
+   JWT_SECRET=tu_jwt_secret
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_SECURE=false
+   EMAIL_USER=tu_correo@dominio.com
+   EMAIL_PASS=tu_app_password_o_token
+   GOOGLE_CLIENT_ID=tu_google_client_id
+   GOOGLE_CLIENT_SECRET=tu_google_client_secret
+   GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
+   CLOUDINARY_CLOUD_NAME=tu_cloud_name
+   CLOUDINARY_API_KEY=tu_api_key
+   CLOUDINARY_API_SECRET=tu_api_secret
+   GEOAPIFY_API_KEY=tu_geoapify_api_key
+   ```
 
    >  Puedes generar tu propio JWT_SECRET ejecutando este comando en Git Bash o terminal:
    >
