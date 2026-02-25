@@ -1,41 +1,46 @@
-import { Router } from "express";
-import passport from "passport";
-import "../config/googleStrategy";
-import jwt from "jsonwebtoken";
+import { Router } from 'express';
+import passport from 'passport';
+import '../config/googleStrategy';
+import jwt from 'jsonwebtoken';
+import Usuario from '../models/User';
 
 const router = Router();
 
-// Usar authorizationURL personalizada para evitar FedCM
-router.get(
-  "/google",
-  (req, res, next) => {
-    passport.authenticate("google", {
-      scope: ["profile", "email"],
-      prompt: "consent", // ⬅️ CAMBIAR A "consent"
-      accessType: "offline",
-      state: Math.random().toString(36).substring(7) // ⬅️ AGREGAR estado aleatorio
+router.get('/google', (req, res, next) => {
+    passport.authenticate('google', {
+        scope: ['profile', 'email'],
+        prompt: 'consent',
+        accessType: 'offline',
+        state: Math.random().toString(36).substring(7),
     })(req, res, next);
-  }
-);
+});
 
 router.get(
-  "/google/callback",
-  passport.authenticate("google", { session: false }),
-  async (req: any, res) => {
-    const token = jwt.sign(
-      {
-        email: req.user.emails[0].value,
-        name: req.user.displayName,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
+    '/google/callback',
+    passport.authenticate('google', { session: false }),
+    async (req: any, res) => {
+        try {
+            // req.user ya es el objeto Usuario de Sequelize (lo retorna la estrategia)
+            const user = req.user as Usuario;
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    
-    // Redirigir al callback del frontend con el token
-    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
-  }
+            const token = jwt.sign(
+                {
+                    id: user.id_usuario,
+                    email: user.email,
+                    rol: user.id_rol,
+                },
+                process.env.JWT_SECRET!,
+                { expiresIn: '8h' },
+            );
+
+            res.redirect(
+                `${process.env.FRONTEND_URL}/auth/callback?token=${token}`,
+            );
+        } catch (error) {
+            console.error('Error en Google callback:', error);
+            res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+        }
+    },
 );
 
 export default router;
