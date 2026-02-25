@@ -7,18 +7,14 @@ import Usuario from "../models/User";
 
 const router = Router();
 
-// Usar authorizationURL personalizada para evitar FedCM
-router.get(
-  "/google",
-  (req, res, next) => {
-    passport.authenticate("google", {
-      scope: ["profile", "email"],
-      prompt: "consent", // ⬅️ CAMBIAR A "consent"
-      accessType: "offline",
-      state: Math.random().toString(36).substring(7) // ⬅️ AGREGAR estado aleatorio
+router.get('/google', (req, res, next) => {
+    passport.authenticate('google', {
+        scope: ['profile', 'email'],
+        prompt: 'consent',
+        accessType: 'offline',
+        state: Math.random().toString(36).substring(7),
     })(req, res, next);
-  }
-);
+});
 
 router.get(
   "/google/callback",
