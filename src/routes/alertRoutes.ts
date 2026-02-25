@@ -1,11 +1,24 @@
-import { Router } from "express";
-import { createAlerta, listAlerta } from "../controllers/alertController";
+import { NextFunction, Request, Response, Router } from "express";
+import { createAlerta, listAlerta, updateAlerta } from "../controllers/alertController";
 import { verifyToken } from "../middleware/authMiddleware";
+import upload from "../middleware/uploadMiddleware";
 
-//  Crea una instancia del enrutador de Express
-const router = Router(); // Esto nos permite definir rutas específicas para "alertas"
+const uploadEvidence = (req: Request, res: Response, next: NextFunction) => {
+  upload.single("evidencia")(req, res, (err: unknown) => {
+    if (err) {
+      const message = err instanceof Error ? err.message : "Archivo de evidencia invalido";
+      res.status(400).json({ message });
+      return;
+    }
 
-router.post("/", verifyToken, createAlerta);
+    next();
+  });
+};
+
+const router = Router();
+
+router.post("/", verifyToken, uploadEvidence, createAlerta);
 router.get("/", verifyToken, listAlerta);
+router.put("/:id", verifyToken, uploadEvidence, updateAlerta);
 
 export default router;
