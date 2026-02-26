@@ -24,6 +24,8 @@ Este proyecto provee la API REST y la logica del lado del servidor para **Digita
 | **bcryptjs** | ^3.0.3 | Alternativa de bcrypt |
 | **passport** | ^0.7.0 | Middleware de autenticación |
 | **passport-google-oauth20** | ^2.0.0 | Google OAuth 2.0 strategy |
+| **multer** | ^2.0.2 | Middleware para subida de archivos |
+| **cloudinary** | ^2.9.0 | Almacenamiento en la nube para imágenes/evidencias |
 | **dotenv** | ^17.2.3 | Variables de entorno (.env) |
 | **cors** | ^2.8.5 | Control de CORS para peticiones del frontend |
 | **nodemailer** | ^7.0.11 | Envío de emails (verificación, recuperación de contraseña) |
@@ -32,12 +34,21 @@ Este proyecto provee la API REST y la logica del lado del servidor para **Digita
 
 | Tecnologia | Version | Proposito |
 |-------------|---------|-----------|
-| **TypeScript** | ^5.x | Lenguaje tipado estático |
+| **TypeScript** | ^5.9.3 | Lenguaje tipado estático |
 | **ts-node-dev** | ^2.0.0 | Ejecutar TypeScript en desarrollo con auto-reload |
 | **ts-node** | ^10.9.2 | Compilador TypeScript para Node.js |
 | **nodemon** | ^3.1.10 | Monitor de cambios y reinicio automático |
 | **sequelize-cli** | ^6.6.3 | CLI para migraciones de BD |
-| **@types/\*** | Varios | Definiciones de tipos TypeScript |
+| **@types/bcrypt** | ^6.0.0 | Tipos TypeScript para bcrypt |
+| **@types/bcryptjs** | ^2.4.6 | Tipos TypeScript para bcryptjs |
+| **@types/cors** | ^2.8.19 | Tipos TypeScript para cors |
+| **@types/express** | ^5.0.6 | Tipos TypeScript para Express |
+| **@types/jsonwebtoken** | ^9.0.10 | Tipos TypeScript para JWT |
+| **@types/multer** | ^2.0.0 | Tipos TypeScript para multer |
+| **@types/node** | ^24.10.3 | Tipos TypeScript para Node.js |
+| **@types/nodemailer** | ^7.0.3 | Tipos TypeScript para nodemailer |
+| **@types/passport** | ^1.0.17 | Tipos TypeScript para Passport |
+| **@types/passport-google-oauth20** | ^2.0.17 | Tipos TypeScript para Google OAuth |
 
 ---
 
