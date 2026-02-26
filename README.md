@@ -11,60 +11,136 @@ Este proyecto provee la API REST y la logica del lado del servidor para **Digita
 
 ##  Tecnologias principales
 
-| Tecnologia | Uso |
-|-------------|------|
-| **Node.js** | Entorno de ejecucion para el backend |
-| **Express** | Framework minimalista para crear API REST |
-| **TypeScript** | Tipado estatico y mejor mantenimiento del codigo |
-| **Sequelize** | ORM para interactuar con PostgreSQL usando modelos |
-| **PostgreSQL** | Base de datos relacional |
-| **JWT (jsonwebtoken)** | Autenticacion segura mediante tokens |
-| **bcrypt** | Encriptacion de contrasenas de usuarios |
-| **Passport.js** | Middleware de autenticacion (Google OAuth 2.0) |
-| **dotenv** | Manejo de variables de entorno |
-| **cors** | Permite peticiones del frontend (React u otros) |
-| **nodemailer** | Envio de correos electronicos (confirmacion de cuenta, recuperacion de contrasena, notificaciones) |
+### Dependencias de Producción
+
+| Tecnologia | Version | Proposito |
+|-------------|---------|-----------|
+| **Express** | ^5.2.1 | Framework web para crear API REST |
+| **Sequelize** | ^6.37.7 | ORM para PostgreSQL con modelos y migraciones |
+| **pg** | ^8.16.3 | Driver PostgreSQL para Node.js |
+| **pg-hstore** | ^2.3.4 | Serialización de hstore para Sequelize (REQUERIDO) |
+| **jsonwebtoken** | ^9.0.3 | Autenticación con JWT tokens |
+| **bcrypt** | ^6.0.0 | Hash seguro de contraseñas |
+| **bcryptjs** | ^3.0.3 | Alternativa de bcrypt |
+| **passport** | ^0.7.0 | Middleware de autenticación |
+| **passport-google-oauth20** | ^2.0.0 | Google OAuth 2.0 strategy |
+| **dotenv** | ^17.2.3 | Variables de entorno (.env) |
+| **cors** | ^2.8.5 | Control de CORS para peticiones del frontend |
+| **nodemailer** | ^7.0.11 | Envío de emails (verificación, recuperación de contraseña) |
+
+### Dependencias de Desarrollo
+
+| Tecnologia | Version | Proposito |
+|-------------|---------|-----------|
+| **TypeScript** | ^5.x | Lenguaje tipado estático |
+| **ts-node-dev** | ^2.0.0 | Ejecutar TypeScript en desarrollo con auto-reload |
+| **ts-node** | ^10.9.2 | Compilador TypeScript para Node.js |
+| **nodemon** | ^3.1.10 | Monitor de cambios y reinicio automático |
+| **sequelize-cli** | ^6.6.3 | CLI para migraciones de BD |
+| **@types/\*** | Varios | Definiciones de tipos TypeScript |
 
 ---
 
 ##  Configuracion del entorno
 
-### 1. **Instalar dependencias**
+### Requisitos Previos
 
-   ```bash
-   npm install
-   ```
+- **Node.js** 18+ instalado
+- **PostgreSQL** 12+ instalado y ejecutándose
+- **npm** o **yarn** como gestor de paquetes
+- **Git** instalado
 
-2. **Archivo `.env`**
-   Crea un archivo `.env` en la raiz del proyecto con el siguiente contenido (ajusta los valores segun tu configuracion):
+### 1. **Clonar el repositorio**
 
-   ```env
-   PORT=4000
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_NAME=digital_alert_hub
-   DB_USER=postgres
-   DB_PASSWORD=tu_password_bd
-   JWT_SECRET=tu_jwt_secret
-   EMAIL_HOST=smtp.gmail.com
-   EMAIL_PORT=587
-   EMAIL_SECURE=false
-   EMAIL_USER=tu_correo@dominio.com
-   EMAIL_PASS=tu_app_password_o_token
-   GOOGLE_CLIENT_ID=tu_google_client_id
-   GOOGLE_CLIENT_SECRET=tu_google_client_secret
-   GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
-   CLOUDINARY_CLOUD_NAME=tu_cloud_name
-   CLOUDINARY_API_KEY=tu_api_key
-   CLOUDINARY_API_SECRET=tu_api_secret
-   GEOAPIFY_API_KEY=tu_geoapify_api_key
-   ```
+```bash
+git clone https://github.com/digitalalerthub/DigitalAlertHub_Backend.git
+cd DigitalAlertHub_Backend
+git checkout dev
+```
 
-   >  Puedes generar tu propio JWT_SECRET ejecutando este comando en Git Bash o terminal:
-   >
-   > ```bash
-   > node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-   > ```
+### 2. **Instalar dependencias**
+
+```bash
+npm install
+```
+
+Esto instala:
+- **Dependencias de producción**: Express, Sequelize, JWT, Passport, Nodemailer, etc.
+- **Dependencias de desarrollo**: TypeScript, ts-node-dev, Nodemon, sequelize-cli, etc.
+
+### 3. **Configurar variables de entorno (.env)**
+
+Crea archivo `.env` en la raiz del proyecto. **Nota:** Usa valores ficticios en desarrollo; obtén valores reales de cada servicio:
+
+```env
+# Servidor
+PORT=4000
+NODE_ENV=development
+
+# Base de datos PostgreSQL
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=digital_alert_hub
+DB_USER=postgres
+DB_PASSWORD=secure_db_password_local
+
+# JWT para autenticación
+JWT_SECRET=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz56abcdefghij
+
+# Nodemailer (Gmail SMTP)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=myemail@example.com
+EMAIL_PASS=app_specific_password
+
+# Google OAuth (https://console.developers.google.com)
+GOOGLE_CLIENT_ID=1234567890-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz
+GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
+
+# Cloudinary (https://cloudinary.com)
+CLOUDINARY_CLOUD_NAME=my_cloud
+CLOUDINARY_API_KEY=123456789012345
+CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz12345
+
+# Geoapify (https://www.geoapify.com)
+GEOAPIFY_API_KEY=abcdefghijklmnopqrstuvwxyz12345678901234
+
+# Frontend
+FRONTEND_URL=http://localhost:5173
+```
+
+**Generar JWT_SECRET seguro:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 4. **Configurar PostgreSQL**
+
+Si ejecutas PostgreSQL localmente:
+
+```bash
+# Conectar a PostgreSQL
+psql -U postgres
+
+# Crear base de datos
+CREATE DATABASE digital_alert_hub;
+
+# Crear usuario (opcional)
+CREATE USER dahub_user WITH PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE digital_alert_hub TO dahub_user;
+
+# Salir
+\q
+```
+
+### 5. **Ejecutar migraciones**
+
+```bash
+npx sequelize-cli db:migrate
+npx sequelize-cli db:seed:all
+```
 
 ---
 
