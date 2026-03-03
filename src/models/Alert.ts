@@ -5,6 +5,8 @@ interface AlertaAttributes {
   id_alerta: number;
   id_usuario: number;
   id_estado: number;
+  id_comuna?: number;
+  id_barrio?: number;
   titulo: string;
   descripcion: string;
   ubicacion?: string;
@@ -21,6 +23,8 @@ type AlertaCreationAttributes = Optional<
   AlertaAttributes,
   | "id_alerta"
   | "prioridad"
+  | "id_comuna"
+  | "id_barrio"
   | "created_at"
   | "updated_at"
   | "deleted_at"
@@ -36,6 +40,8 @@ class Alerta
   public id_alerta!: number;
   public id_usuario!: number;
   public id_estado!: number;
+  public id_comuna?: number;
+  public id_barrio?: number;
   public titulo!: string;
   public descripcion!: string;
   public ubicacion?: string;
@@ -68,6 +74,24 @@ Alerta.init(
       references: {
         model: "estados",
         key: "id_estado",
+      },
+    },
+    id_comuna: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "id_comuna",
+      references: {
+        model: "comunas",
+        key: "id_comuna",
+      },
+    },
+    id_barrio: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "id_barrio",
+      references: {
+        model: "barrios",
+        key: "id_barrio",
       },
     },
     titulo: {

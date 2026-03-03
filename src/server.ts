@@ -2,6 +2,7 @@ import dotenv from "dotenv";                          //  Cargamos las variables
 dotenv.config();                    // Inicializamos dotenv (esto permite usar process.env.PORT, process.env.DB_HOST, etc.)
 
 import { connectDB } from "./config/db";               //  Importamos la función de conexión a la base de datos
+import { syncLocationCatalog } from "./services/locationCatalogService";
 
 import app from "./app";                            //  Importamos la app principal (donde están las rutas y middlewares)
 
@@ -16,6 +17,10 @@ app.listen(PORT, () => {
 connectDB()
   .then(() => {
     console.log("✅ Base de datos conectada exitosamente");
+    return syncLocationCatalog();
+  })
+  .then(() => {
+    console.log("✅ Catalogo de comunas y barrios sincronizado");
   })
   .catch((error) => {
     console.error("❌ Error conectando a la base de datos:", error);

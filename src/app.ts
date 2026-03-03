@@ -12,6 +12,8 @@ import profileRoutes from "./routes/profileRoutes";
 import userRoutes from "./routes/userRoutes";
 import roleRoutes from "./routes/roleRoutes";
 import geoRoutes from "./routes/geoRoutes";
+import locationRoutes from "./routes/locationRoutes";
+import reactionRoutes from "./routes/reactionRoutes";
 
 
 import authGoogleRoutes from "./routes/authGoogle"; // <-- IMPORTANTE
@@ -41,6 +43,8 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/geo", geoRoutes);
+app.use("/api/locations", locationRoutes);
+app.use("/api/reactions", reactionRoutes);
 
 
 // ENDPOINT RAÍZ
