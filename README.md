@@ -123,6 +123,8 @@ EMAIL_PASS=app_specific_password
 GOOGLE_CLIENT_ID=1234567890-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz
 GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
+GOOGLE_GMAIL_REFRESH_TOKEN=1//example_refresh_token
+GOOGLE_GMAIL_SENDER=myemail@example.com
 
 # Cloudinary (https://cloudinary.com)
 CLOUDINARY_CLOUD_NAME=my_cloud
@@ -134,6 +136,7 @@ GEOAPIFY_API_KEY=abcdefghijklmnopqrstuvwxyz12345678901234
 
 # Frontend
 FRONTEND_URL=http://localhost:5173
+BACKEND_URL=http://localhost:4000
 ```
 
 **Generar JWT_SECRET seguro:**
