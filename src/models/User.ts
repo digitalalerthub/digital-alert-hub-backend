@@ -12,6 +12,9 @@ interface UsuarioAttributes {
   contrasena: string;
   telefono?: string | null;
   estado: boolean;
+  created_at?: Date;
+  updated_at?: Date;
+  deleted_at?: Date | null;
 }
 
 //  Define qué campos son opcionales al crear un usuario.
@@ -31,6 +34,9 @@ class Usuario // Usa los tipos anteriores para asegurar que todo esté bien defi
   public contrasena!: string;
   public telefono?: string | null;
   public estado!: boolean;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
+  public readonly deleted_at!: Date | null;
 }
 
 //  Definición del modelo Sequelize -> cómo se mapea con la tabla 'usuarios'
@@ -78,7 +84,11 @@ Usuario.init(
   {
     sequelize, // conexión con la base de datos
     tableName: "usuarios", // nombre de la tabla real
-    timestamps: false, // evita columnas automáticas createdAt / updatedAt
+    timestamps: true,
+    createdAt: "created_at",
+    updatedAt: "updated_at",
+    deletedAt: "deleted_at",
+    paranoid: false,
   }
 );
 

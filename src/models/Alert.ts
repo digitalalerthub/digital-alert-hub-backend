@@ -1,28 +1,38 @@
 import { DataTypes, Model, Optional } from "sequelize";
 import { sequelize } from "../config/db";
 
-//  Definición de los atributos de la tabla "alertas"
 interface AlertaAttributes {
   id_alerta: number;
   id_usuario: number;
   id_estado: number;
+  id_comuna?: number;
+  id_barrio?: number;
   titulo: string;
   descripcion: string;
   ubicacion?: string;
   prioridad?: string;
-  categoria?: string; 
-  createdat?: Date;
-  updatedat?: Date;
-  deletedat?: Date;
+  categoria: string;
+  evidencia_url?: string;
+  evidencia_tipo?: string;
+  created_at?: Date;
+  updated_at?: Date;
+  deleted_at?: Date;
 }
 
-//  Al crear una alerta, estos campos son opcionales porque se generan automáticamente
 type AlertaCreationAttributes = Optional<
   AlertaAttributes,
-  "id_alerta" | "prioridad" | "categoria" | "createdat" | "updatedat" | "deletedat"
+  | "id_alerta"
+  | "prioridad"
+  | "id_comuna"
+  | "id_barrio"
+  | "created_at"
+  | "updated_at"
+  | "deleted_at"
+  | "ubicacion"
+  | "evidencia_url"
+  | "evidencia_tipo"
 >;
 
-//  Clase del modelo que representa una alerta
 class Alerta
   extends Model<AlertaAttributes, AlertaCreationAttributes>
   implements AlertaAttributes
@@ -30,17 +40,20 @@ class Alerta
   public id_alerta!: number;
   public id_usuario!: number;
   public id_estado!: number;
+  public id_comuna?: number;
+  public id_barrio?: number;
   public titulo!: string;
   public descripcion!: string;
   public ubicacion?: string;
   public prioridad?: string;
-  public categoria?: string; 
-  public readonly createdat!: Date;
-  public readonly updatedat!: Date;
-  public readonly deletedat!: Date;
+  public categoria!: string;
+  public evidencia_url?: string;
+  public evidencia_tipo?: string;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
+  public readonly deleted_at!: Date;
 }
 
-//  Definición del modelo Sequelize
 Alerta.init(
   {
     id_alerta: {
@@ -63,6 +76,24 @@ Alerta.init(
         key: "id_estado",
       },
     },
+    id_comuna: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "id_comuna",
+      references: {
+        model: "comunas",
+        key: "id_comuna",
+      },
+    },
+    id_barrio: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "id_barrio",
+      references: {
+        model: "barrios",
+        key: "id_barrio",
+      },
+    },
     titulo: {
       type: DataTypes.STRING(200),
       allowNull: false,
@@ -80,8 +111,16 @@ Alerta.init(
       allowNull: true,
     },
     categoria: {
-      type: DataTypes.STRING(100), 
-      allowNull: false, // o false si la hiciste obligatoria en la BD
+      type: DataTypes.STRING(100),
+      allowNull: false,
+    },
+    evidencia_url: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+    evidencia_tipo: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
     },
   },
   {
@@ -91,7 +130,7 @@ Alerta.init(
     createdAt: "created_at",
     updatedAt: "updated_at",
     deletedAt: "deleted_at",
-    paranoid: true, // habilita borrado lógico
+    paranoid: true,
   }
 );
 
