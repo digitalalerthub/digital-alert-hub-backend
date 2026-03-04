@@ -5,4 +5,4 @@ dist-ssr
 .env
 .DS_Store
 /credentials
-db-sync-artifacts/
+/db-sync-artifacts

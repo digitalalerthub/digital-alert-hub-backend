@@ -13,10 +13,23 @@ export const isAdmin = async (
   }
 
   try {
-    // Validar por nombre de rol evita depender de un id fijo distinto por entorno.
-    const role = await Rol.findByPk(user.rol);
-    const roleName = String((role as any)?.nombre_rol || "").toLowerCase().trim();
-    const esAdmin = roleName === "admin" || roleName === "administrador";
+    const roleId = Number(user.rol);
+
+    // Fallback por id 1 (usado por el frontend actual) y validación flexible por nombre.
+    const role = Number.isNaN(roleId) ? null : await Rol.findByPk(roleId);
+    const roleName = String((role as any)?.nombre_rol || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+
+    const esAdminPorNombre =
+      roleName === "admin" ||
+      roleName === "administrador" ||
+      roleName.includes("admin");
+
+    const esAdminPorId = roleId === 1;
+    const esAdmin = esAdminPorNombre || esAdminPorId;
 
     if (!esAdmin) {
       return res
