@@ -3,6 +3,7 @@ import Alerta from "../models/Alert";
 import cloudinary from "../config/cloudinary";
 import Rol from "../models/Role";
 import Barrio from "../models/Barrio";
+import Comuna from "../models/Comuna"; // ← NUEVO
 import Usuario from "../models/User";
 import Evidence from "../models/Evidence";
 
@@ -49,7 +50,6 @@ const validateEvidenceImages = (files: Express.Multer.File[]): string | null => 
   if (hasInvalidMime) {
     return "Solo se permiten imagenes en evidencias (JPG, PNG, WEBP)";
   }
-
   return null;
 };
 
@@ -63,13 +63,11 @@ const uploadEvidenceBatch = async (files: Express.Multer.File[]): Promise<Upload
       };
     })
   );
-
   return uploads;
 };
 
 const parseOptionalPositiveInt = (value: unknown): number | undefined | null => {
   if (value === undefined || value === null || value === "") return undefined;
-
   const n = Number(value);
   if (!Number.isInteger(n) || n <= 0) return null;
   return n;
@@ -83,7 +81,6 @@ const isValidComunaBarrioPair = async (idComuna: number, idBarrio: number): Prom
     },
     attributes: ["id_barrio"],
   });
-
   return Boolean(barrio);
 };
 
@@ -189,18 +186,34 @@ export const listAlerta = async (_req: Request, res: Response) => {
   try {
     const alertas = await Alerta.findAll();
 
+    // IDs únicos de usuarios y comunas
     const userIds = Array.from(
       new Set(alertas.map((alerta) => alerta.id_usuario).filter((id) => Number.isInteger(id) && id > 0))
     );
 
-    const usuarios = await Usuario.findAll({
-      where: {
-        id_usuario: userIds,
-      },
-      attributes: ["id_usuario", "nombre", "apellido"],
-      raw: true,
-    });
+    const comunaIds = Array.from(
+      new Set(
+        alertas
+          .map((alerta) => alerta.id_comuna)
+          .filter((id): id is number => id !== undefined && id !== null && Number.isInteger(id) && id > 0)
+      )
+    );
 
+    // Consultas en paralelo
+    const [usuarios, comunas] = await Promise.all([
+      Usuario.findAll({
+        where: { id_usuario: userIds },
+        attributes: ["id_usuario", "nombre", "apellido"],
+        raw: true,
+      }),
+      Comuna.findAll({
+        where: { id_comuna: comunaIds },
+        attributes: ["id_comuna", "nombre"],
+        raw: true,
+      }),
+    ]);
+
+    // Map nombre usuario por ID
     const userNameById = new Map<number, string>();
     for (const usuario of usuarios as Array<{ id_usuario: number; nombre: string; apellido: string }>) {
       const nombre = String(usuario.nombre || "").trim();
@@ -210,13 +223,18 @@ export const listAlerta = async (_req: Request, res: Response) => {
       userNameById.set(usuario.id_usuario, fullName);
     }
 
+    // Map nombre comuna por ID
+    const comunaNombreById = new Map<number, string>();
+    for (const comuna of comunas as Array<{ id_comuna: number; nombre: string }>) {
+      comunaNombreById.set(comuna.id_comuna, comuna.nombre);
+    }
+
+    // Evidencias
     const alertIds = alertas.map((alerta) => alerta.id_alerta);
     const evidencias =
       alertIds.length > 0
         ? await Evidence.findAll({
-            where: {
-              id_alerta: alertIds,
-            },
+            where: { id_alerta: alertIds },
             order: [
               ["id_alerta", "ASC"],
               ["created_at", "ASC"],
@@ -248,12 +266,16 @@ export const listAlerta = async (_req: Request, res: Response) => {
       const plain = alerta.toJSON();
       const idUsuario = Number(plain.id_usuario);
       const nombreUsuario = userNameById.get(idUsuario) || `Usuario #${idUsuario}`;
+      const nombreComuna = plain.id_comuna
+        ? comunaNombreById.get(plain.id_comuna) ?? `Comuna ${plain.id_comuna}`
+        : undefined;
       const alertEvidence = evidenceByAlert.get(plain.id_alerta) || [];
       const primaryEvidence = alertEvidence[0];
 
       return {
         ...plain,
         nombre_usuario: nombreUsuario,
+        nombre_comuna: nombreComuna, // ← NUEVO
         evidencia_url: plain.evidencia_url || primaryEvidence?.url_evidencia,
         evidencia_tipo: plain.evidencia_tipo || primaryEvidence?.tipo_evidencia || undefined,
         evidencias: alertEvidence,
@@ -292,7 +314,6 @@ export const updateAlerta = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "No puedes editar alertas de otros usuarios" });
     }
 
-    // Regla de negocio: el creador solo puede editar si sigue en estado inicial.
     if (!isAdmin && alert.id_estado !== 1) {
       return res.status(403).json({
         message: "No puedes editar esta alerta porque la JAC ya cambio su estado",
@@ -375,9 +396,7 @@ export const updateAlerta = async (req: Request, res: Response) => {
 
     if (evidenceFiles.length > 0) {
       await Evidence.destroy({
-        where: {
-          id_alerta: alert.id_alerta,
-        },
+        where: { id_alerta: alert.id_alerta },
       });
 
       await Evidence.bulkCreate(
@@ -391,9 +410,7 @@ export const updateAlerta = async (req: Request, res: Response) => {
     }
 
     const alertEvidences = await Evidence.findAll({
-      where: {
-        id_alerta: alert.id_alerta,
-      },
+      where: { id_alerta: alert.id_alerta },
       order: [["created_at", "ASC"]],
       raw: true,
     });
