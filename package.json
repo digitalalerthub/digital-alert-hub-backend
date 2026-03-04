@@ -7,6 +7,7 @@
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
+    "sync:locations": "ts-node --transpile-only src/scripts/syncLocationCatalog.ts",
     "test": "echo \"No hay tests definidos todavía\" && exit 0"
   },
   "repository": {
