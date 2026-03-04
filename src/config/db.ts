@@ -3,26 +3,51 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-export const sequelize = new Sequelize(
-  process.env.DB_NAME as string,
-  process.env.DB_USER as string,
-  process.env.DB_PASSWORD as string,
-  {
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT) || 5432,
-    dialect: "postgres",
-    logging: process.env.NODE_ENV === "development",
-    dialectOptions: {
-      ssl:
-        process.env.NODE_ENV === "production"
-          ? {
-              require: true,
-              rejectUnauthorized: false,
-            }
-          : false,
-    },
-  }
-);
+const parseBoolean = (value: string | undefined): boolean | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return null;
+};
+
+const databaseUrl = process.env.DATABASE_URL?.trim();
+const explicitDbSsl = parseBoolean(process.env.DB_SSL);
+const explicitSqlLogging = parseBoolean(process.env.DB_LOG_SQL);
+const shouldUseSsl =
+  explicitDbSsl ??
+  Boolean(
+    process.env.NODE_ENV === "production" ||
+      databaseUrl ||
+      process.env.DB_HOST?.includes("neon.tech")
+  );
+const shouldLogSql = explicitSqlLogging ?? false;
+
+const baseOptions = {
+  dialect: "postgres" as const,
+  logging: shouldLogSql ? console.log : false,
+  dialectOptions: shouldUseSsl
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      }
+    : {},
+};
+
+export const sequelize = databaseUrl
+  ? new Sequelize(databaseUrl, baseOptions)
+  : new Sequelize(
+      process.env.DB_NAME as string,
+      process.env.DB_USER as string,
+      process.env.DB_PASSWORD as string,
+      {
+        ...baseOptions,
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT) || 5432,
+      }
+    );
 
 const ensureAlertLocationSchema = async (): Promise<void> => {
   await sequelize.query(`

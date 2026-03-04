@@ -57,7 +57,7 @@ Este proyecto provee la API REST y la logica del lado del servidor para **Digita
 ### Requisitos Previos
 
 - **Node.js** 18+ instalado
-- **PostgreSQL** 12+ instalado y ejecutándose
+- **PostgreSQL** 12+ (opcional, solo si no usaras Neon)
 - **npm** o **yarn** como gestor de paquetes
 - **Git** instalado
 
@@ -88,12 +88,26 @@ Crea archivo `.env` en la raiz del proyecto. **Nota:** Usa valores ficticios en 
 PORT=4000
 NODE_ENV=development
 
-# Base de datos PostgreSQL
-DB_HOST=localhost
+# Base de datos (Neon recomendado para unificar local + deploy)
+# Opcion A: URL unica de conexion (prioritaria)
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
+DB_SSL=true
+
+# Opcion B: variables separadas (si no usas DATABASE_URL)
+DB_HOST=ep-xxxxxx-pooler.us-east-1.aws.neon.tech
 DB_PORT=5432
-DB_NAME=digital_alert_hub
-DB_USER=postgres
-DB_PASSWORD=secure_db_password_local
+DB_NAME=neondb
+DB_USER=neondb_owner
+DB_PASSWORD=npg_xxxxxxxxxxxxx
+
+# Sync de Sequelize (recomendado false en ambientes compartidos)
+DB_SYNC=false
+
+# Logs SQL de Sequelize (recomendado false)
+DB_LOG_SQL=false
+
+# Sincronizar catalogo comunas/barrios al arrancar el backend (recomendado false)
+SYNC_LOCATION_CATALOG_ON_BOOT=false
 
 # JWT para autenticación
 JWT_SECRET=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz56abcdefghij
@@ -127,7 +141,13 @@ FRONTEND_URL=http://localhost:5173
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-### 4. **Configurar PostgreSQL**
+### 4. **Configurar base de datos**
+
+#### Opcion recomendada: Neon compartida (local y deploy)
+
+Usa la misma `DATABASE_URL` (o `DB_HOST/DB_*`) de Neon en local y en Render para que todo el equipo trabaje contra la misma base.
+
+#### Opcion alternativa: PostgreSQL local
 
 Si ejecutas PostgreSQL localmente:
 
@@ -167,6 +187,11 @@ El servidor se ejecutara por defecto en:
 http://localhost:4000
 ```
 
+Para sincronizar comunas/barrios manualmente (sin hacerlo en cada arranque):
+```bash
+npm run sync:locations
+```
+
 ---
 
 ##  Nodemailer - Configuracion de correos
@@ -200,6 +225,7 @@ const transporter = nodemailer.createTransport({
 |----------|--------------|
 | `npm run dev` | Ejecuta el servidor en modo desarrollo (con Nodemon) |
 | `npm run build` | Compila el codigo TypeScript a JavaScript |
+| `npm run sync:locations` | Sincroniza manualmente el catalogo de comunas y barrios |
 | `npm start` | Ejecuta el servidor en produccion |
 
 ---
