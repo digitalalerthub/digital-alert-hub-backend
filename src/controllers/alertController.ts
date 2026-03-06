@@ -1,11 +1,42 @@
 import { Request, Response } from "express";
-import Alerta from "../models/Alert";
 import cloudinary from "../config/cloudinary";
-import Rol from "../models/Role";
+import Alerta from "../models/Alert";
 import Barrio from "../models/Barrio";
-import Comuna from "../models/Comuna"; // ← NUEVO
-import Usuario from "../models/User";
+import Comuna from "../models/Comuna";
 import Evidence from "../models/Evidence";
+import Rol from "../models/Role";
+import Usuario from "../models/User";
+
+type UploadedEvidence = {
+  secureUrl: string;
+  mimeType: string;
+};
+
+type AlertEvidencePayload = {
+  id_evidencia: number;
+  url_evidencia: string;
+  tipo_evidencia: string | null;
+};
+
+type UserNameRow = {
+  id_usuario: number;
+  nombre: string;
+  apellido: string;
+};
+
+type ComunaNameRow = {
+  id_comuna: number;
+  nombre: string;
+};
+
+type BarrioNameRow = {
+  id_barrio: number;
+  nombre: string;
+};
+
+type EvidenceRow = AlertEvidencePayload & {
+  id_alerta: number;
+};
 
 const uploadEvidenceToCloudinary = async (file: Express.Multer.File) => {
   if (
@@ -24,11 +55,6 @@ const uploadEvidenceToCloudinary = async (file: Express.Multer.File) => {
     folder: "digital-alert-hub/evidencias",
     resource_type: resourceType,
   });
-};
-
-type UploadedEvidence = {
-  secureUrl: string;
-  mimeType: string;
 };
 
 const getUploadedEvidenceFiles = (req: Request): Express.Multer.File[] => {
@@ -150,6 +176,120 @@ const isValidComunaBarrioPair = async (idComuna: number, idBarrio: number): Prom
   return Boolean(barrio);
 };
 
+const buildAlertPayloads = async (alertas: Alerta[]) => {
+  if (alertas.length === 0) {
+    return [];
+  }
+
+  const userIds = Array.from(
+    new Set(alertas.map((alerta) => alerta.id_usuario).filter((id) => Number.isInteger(id) && id > 0))
+  );
+
+  const comunaIds = Array.from(
+    new Set(
+      alertas
+        .map((alerta) => alerta.id_comuna)
+        .filter((id): id is number => id !== undefined && id !== null && Number.isInteger(id) && id > 0)
+    )
+  );
+
+  const barrioIds = Array.from(
+    new Set(
+      alertas
+        .map((alerta) => alerta.id_barrio)
+        .filter((id): id is number => id !== undefined && id !== null && Number.isInteger(id) && id > 0)
+    )
+  );
+
+  const alertIds = alertas.map((alerta) => alerta.id_alerta);
+
+  const [usuarios, comunas, barrios, evidencias] = await Promise.all([
+    userIds.length > 0
+      ? Usuario.findAll({
+          where: { id_usuario: userIds },
+          attributes: ["id_usuario", "nombre", "apellido"],
+          raw: true,
+        })
+      : Promise.resolve([]),
+    comunaIds.length > 0
+      ? Comuna.findAll({
+          where: { id_comuna: comunaIds },
+          attributes: ["id_comuna", "nombre"],
+          raw: true,
+        })
+      : Promise.resolve([]),
+    barrioIds.length > 0
+      ? Barrio.findAll({
+          where: { id_barrio: barrioIds },
+          attributes: ["id_barrio", "nombre"],
+          raw: true,
+        })
+      : Promise.resolve([]),
+    Evidence.findAll({
+      where: { id_alerta: alertIds },
+      order: [
+        ["id_alerta", "ASC"],
+        ["created_at", "ASC"],
+      ],
+      raw: true,
+    }),
+  ]);
+
+  const userNameById = new Map<number, string>();
+  for (const usuario of usuarios as UserNameRow[]) {
+    const nombre = String(usuario.nombre || "").trim();
+    const apellido = String(usuario.apellido || "").trim();
+    const fullName = `${nombre} ${apellido}`.trim();
+    if (!fullName) continue;
+    userNameById.set(usuario.id_usuario, fullName);
+  }
+
+  const comunaNombreById = new Map<number, string>();
+  for (const comuna of comunas as ComunaNameRow[]) {
+    comunaNombreById.set(comuna.id_comuna, comuna.nombre);
+  }
+
+  const barrioNombreById = new Map<number, string>();
+  for (const barrio of barrios as BarrioNameRow[]) {
+    barrioNombreById.set(barrio.id_barrio, barrio.nombre);
+  }
+
+  const evidenceByAlert = new Map<number, AlertEvidencePayload[]>();
+  for (const evidence of evidencias as EvidenceRow[]) {
+    const current = evidenceByAlert.get(evidence.id_alerta) || [];
+    current.push({
+      id_evidencia: evidence.id_evidencia,
+      url_evidencia: evidence.url_evidencia,
+      tipo_evidencia: evidence.tipo_evidencia ?? null,
+    });
+    evidenceByAlert.set(evidence.id_alerta, current);
+  }
+
+  return alertas.map((alerta) => {
+    const plain = alerta.toJSON();
+    const idUsuario = Number(plain.id_usuario);
+    const nombreUsuario = userNameById.get(idUsuario) || `Usuario #${idUsuario}`;
+    const nombreComuna = plain.id_comuna
+      ? comunaNombreById.get(plain.id_comuna) ?? `Comuna ${plain.id_comuna}`
+      : undefined;
+    const nombreBarrio = plain.id_barrio
+      ? barrioNombreById.get(plain.id_barrio) ?? `Barrio ${plain.id_barrio}`
+      : undefined;
+    const alertEvidence = evidenceByAlert.get(plain.id_alerta) || [];
+    const primaryEvidence = alertEvidence[0];
+
+    return {
+      ...plain,
+      nombre_usuario: nombreUsuario,
+      nombre_comuna: nombreComuna,
+      nombre_barrio: nombreBarrio,
+      evidencia_url: plain.evidencia_url || primaryEvidence?.url_evidencia,
+      evidencia_tipo: plain.evidencia_tipo || primaryEvidence?.tipo_evidencia || undefined,
+      evidencias: alertEvidence,
+    };
+  });
+};
+
 export const createAlerta = async (req: Request, res: Response) => {
   try {
     const { titulo, descripcion, categoria, ubicacion, prioridad, id_comuna, id_barrio } = req.body;
@@ -251,107 +391,31 @@ export const createAlerta = async (req: Request, res: Response) => {
 export const listAlerta = async (_req: Request, res: Response) => {
   try {
     const alertas = await Alerta.findAll();
-
-    // IDs únicos de usuarios y comunas
-    const userIds = Array.from(
-      new Set(alertas.map((alerta) => alerta.id_usuario).filter((id) => Number.isInteger(id) && id > 0))
-    );
-
-    const comunaIds = Array.from(
-      new Set(
-        alertas
-          .map((alerta) => alerta.id_comuna)
-          .filter((id): id is number => id !== undefined && id !== null && Number.isInteger(id) && id > 0)
-      )
-    );
-
-    // Consultas en paralelo
-    const [usuarios, comunas] = await Promise.all([
-      Usuario.findAll({
-        where: { id_usuario: userIds },
-        attributes: ["id_usuario", "nombre", "apellido"],
-        raw: true,
-      }),
-      Comuna.findAll({
-        where: { id_comuna: comunaIds },
-        attributes: ["id_comuna", "nombre"],
-        raw: true,
-      }),
-    ]);
-
-    // Map nombre usuario por ID
-    const userNameById = new Map<number, string>();
-    for (const usuario of usuarios as Array<{ id_usuario: number; nombre: string; apellido: string }>) {
-      const nombre = String(usuario.nombre || "").trim();
-      const apellido = String(usuario.apellido || "").trim();
-      const fullName = `${nombre} ${apellido}`.trim();
-      if (!fullName) continue;
-      userNameById.set(usuario.id_usuario, fullName);
-    }
-
-    // Map nombre comuna por ID
-    const comunaNombreById = new Map<number, string>();
-    for (const comuna of comunas as Array<{ id_comuna: number; nombre: string }>) {
-      comunaNombreById.set(comuna.id_comuna, comuna.nombre);
-    }
-
-    // Evidencias
-    const alertIds = alertas.map((alerta) => alerta.id_alerta);
-    const evidencias =
-      alertIds.length > 0
-        ? await Evidence.findAll({
-            where: { id_alerta: alertIds },
-            order: [
-              ["id_alerta", "ASC"],
-              ["created_at", "ASC"],
-            ],
-            raw: true,
-          })
-        : [];
-
-    const evidenceByAlert = new Map<
-      number,
-      Array<{ id_evidencia: number; url_evidencia: string; tipo_evidencia: string | null }>
-    >();
-    for (const evidence of evidencias as Array<{
-      id_evidencia: number;
-      id_alerta: number;
-      tipo_evidencia: string | null;
-      url_evidencia: string;
-    }>) {
-      const current = evidenceByAlert.get(evidence.id_alerta) || [];
-      current.push({
-        id_evidencia: evidence.id_evidencia,
-        url_evidencia: evidence.url_evidencia,
-        tipo_evidencia: evidence.tipo_evidencia ?? null,
-      });
-      evidenceByAlert.set(evidence.id_alerta, current);
-    }
-
-    const payload = alertas.map((alerta) => {
-      const plain = alerta.toJSON();
-      const idUsuario = Number(plain.id_usuario);
-      const nombreUsuario = userNameById.get(idUsuario) || `Usuario #${idUsuario}`;
-      const nombreComuna = plain.id_comuna
-        ? comunaNombreById.get(plain.id_comuna) ?? `Comuna ${plain.id_comuna}`
-        : undefined;
-      const alertEvidence = evidenceByAlert.get(plain.id_alerta) || [];
-      const primaryEvidence = alertEvidence[0];
-
-      return {
-        ...plain,
-        nombre_usuario: nombreUsuario,
-        nombre_comuna: nombreComuna, // ← NUEVO
-        evidencia_url: plain.evidencia_url || primaryEvidence?.url_evidencia,
-        evidencia_tipo: plain.evidencia_tipo || primaryEvidence?.tipo_evidencia || undefined,
-        evidencias: alertEvidence,
-      };
-    });
-
+    const payload = await buildAlertPayloads(alertas);
     res.json(payload);
   } catch (error) {
     console.error("Error al obtener alertas:", error);
     res.status(500).json({ error: "Error al obtener las alertas" });
+  }
+};
+
+export const getAlertaById = async (req: Request, res: Response) => {
+  try {
+    const idAlerta = Number(req.params.id);
+    if (Number.isNaN(idAlerta)) {
+      return res.status(400).json({ message: "ID de alerta invalido" });
+    }
+
+    const alert = await Alerta.findByPk(idAlerta);
+    if (!alert) {
+      return res.status(404).json({ message: "Alerta no encontrada" });
+    }
+
+    const [payload] = await buildAlertPayloads([alert]);
+    return res.json(payload);
+  } catch (error) {
+    console.error("Error al obtener detalle de alerta:", error);
+    return res.status(500).json({ message: "Error al obtener detalle de alerta" });
   }
 };
 

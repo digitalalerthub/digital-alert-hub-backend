@@ -29,7 +29,7 @@ const getRequestUserId = (req: Request): number | null => {
 
 const buildAlertReactionSummary = async (
   idAlerta: number,
-  idUsuario: number
+  idUsuario?: number | null
 ): Promise<AlertReactionSummary[]> => {
   const [catalog, countRowsRaw, myReaction] = await Promise.all([
     Reaction.findAll({
@@ -42,13 +42,15 @@ const buildAlertReactionSummary = async (
       group: ["id_reaccion"],
       raw: true,
     }),
-    AlertReaction.findOne({
-      where: {
-        id_alerta: idAlerta,
-        id_usuario: idUsuario,
-      },
-      attributes: ["id_reaccion"],
-    }),
+    idUsuario
+      ? AlertReaction.findOne({
+          where: {
+            id_alerta: idAlerta,
+            id_usuario: idUsuario,
+          },
+          attributes: ["id_reaccion"],
+        })
+      : Promise.resolve(null),
   ]);
   const counts = countRowsRaw as unknown as ReactionCountRow[];
 
@@ -76,9 +78,6 @@ export const listAlertReactions = async (req: Request, res: Response) => {
     }
 
     const idUsuario = getRequestUserId(req);
-    if (!idUsuario) {
-      return res.status(401).json({ message: "No autenticado" });
-    }
 
     const alertExists = await Alerta.findByPk(idAlerta, {
       attributes: ["id_alerta"],
