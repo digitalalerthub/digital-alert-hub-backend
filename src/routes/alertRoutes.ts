@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import {
     createAlerta,
+    deleteAlerta,
     listAlerta,
     updateAlerta,
 } from '../controllers/alertController';
@@ -41,6 +42,7 @@ const router = Router();
 router.post('/', verifyToken, uploadEvidence, createAlerta);
 router.get('/', verifyToken, listAlerta);
 router.put('/:id', verifyToken, uploadEvidence, updateAlerta);
+router.delete('/:id', verifyToken, deleteAlerta);
 router.get('/:id/reactions', verifyToken, listAlertReactions);
 router.post('/:id/reactions', verifyToken, toggleAlertReaction);
 router.get('/:id/comments', verifyToken, listAlertComments);

@@ -73,6 +73,72 @@ const parseOptionalPositiveInt = (value: unknown): number | undefined | null => 
   return n;
 };
 
+const parseBooleanFlag = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value !== "string") return false;
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "si";
+};
+
+const parseEvidenceIdsToDelete = (value: unknown): number[] | null => {
+  if (value === undefined || value === null || value === "") return [];
+
+  const rawItems: unknown[] = [];
+  let invalidInput = false;
+
+  const appendItem = (item: unknown) => {
+    if (item === undefined || item === null || item === "") return;
+
+    if (Array.isArray(item)) {
+      item.forEach(appendItem);
+      return;
+    }
+
+    if (typeof item === "string") {
+      const trimmed = item.trim();
+      if (!trimmed) return;
+
+      if (trimmed.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          appendItem(parsed);
+          return;
+        } catch {
+          invalidInput = true;
+          return;
+        }
+      }
+
+      if (trimmed.includes(",")) {
+        trimmed
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .forEach(appendItem);
+        return;
+      }
+    }
+
+    rawItems.push(item);
+  };
+
+  appendItem(value);
+  if (invalidInput) return null;
+
+  const parsedIds: number[] = [];
+  for (const item of rawItems) {
+    const n = Number(item);
+    if (!Number.isInteger(n) || n <= 0) {
+      return null;
+    }
+    parsedIds.push(n);
+  }
+
+  return Array.from(new Set(parsedIds));
+};
+
 const isValidComunaBarrioPair = async (idComuna: number, idBarrio: number): Promise<boolean> => {
   const barrio = await Barrio.findOne({
     where: {
@@ -377,28 +443,53 @@ export const updateAlerta = async (req: Request, res: Response) => {
       alert.id_barrio = nextBarrio;
     }
 
+    const evidenceIdsToDelete = parseEvidenceIdsToDelete(req.body.evidencias_eliminadas);
+    if (evidenceIdsToDelete === null) {
+      return res.status(400).json({ message: "La lista de evidencias a eliminar es invalida" });
+    }
+
+    const deleteAllEvidence = parseBooleanFlag(req.body.eliminar_todas_evidencias);
+
     const evidenceFiles = getUploadedEvidenceFiles(req);
-    let uploadedEvidence: UploadedEvidence[] = [];
     if (evidenceFiles.length > 0) {
       const evidenceValidationError = validateEvidenceImages(evidenceFiles);
       if (evidenceValidationError) {
         return res.status(400).json({ message: evidenceValidationError });
       }
-
-      uploadedEvidence = await uploadEvidenceBatch(evidenceFiles);
-      const firstEvidence = uploadedEvidence[0];
-
-      alert.evidencia_url = firstEvidence?.secureUrl;
-      alert.evidencia_tipo = firstEvidence?.mimeType;
     }
 
-    await alert.save();
-
+    let uploadedEvidence: UploadedEvidence[] = [];
     if (evidenceFiles.length > 0) {
+      uploadedEvidence = await uploadEvidenceBatch(evidenceFiles);
+    }
+
+    if (deleteAllEvidence) {
       await Evidence.destroy({
         where: { id_alerta: alert.id_alerta },
       });
+    } else if (evidenceIdsToDelete.length > 0) {
+      const existingEvidence = await Evidence.findAll({
+        where: {
+          id_alerta: alert.id_alerta,
+          id_evidencia: evidenceIdsToDelete,
+        },
+        attributes: ["id_evidencia"],
+        raw: true,
+      });
 
+      if (existingEvidence.length !== evidenceIdsToDelete.length) {
+        return res.status(400).json({ message: "Una o mas evidencias a eliminar no pertenecen a la alerta" });
+      }
+
+      await Evidence.destroy({
+        where: {
+          id_alerta: alert.id_alerta,
+          id_evidencia: evidenceIdsToDelete,
+        },
+      });
+    }
+
+    if (uploadedEvidence.length > 0) {
       await Evidence.bulkCreate(
         uploadedEvidence.map((item) => ({
           id_alerta: alert.id_alerta,
@@ -415,6 +506,20 @@ export const updateAlerta = async (req: Request, res: Response) => {
       raw: true,
     });
 
+    const evidenceOperationRequested =
+      deleteAllEvidence || evidenceIdsToDelete.length > 0 || uploadedEvidence.length > 0;
+
+    if (evidenceOperationRequested) {
+      const firstEvidence = alertEvidences[0] as
+        | { url_evidencia: string; tipo_evidencia: string | null }
+        | undefined;
+
+      (alert as any).evidencia_url = firstEvidence?.url_evidencia ?? null;
+      (alert as any).evidencia_tipo = firstEvidence?.tipo_evidencia ?? null;
+    }
+
+    await alert.save();
+
     res.json({
       message: "Alerta actualizada con exito",
       alert: {
@@ -429,5 +534,48 @@ export const updateAlerta = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error al actualizar alerta:", error);
     res.status(500).json({ message: "Error al actualizar la alerta" });
+  }
+};
+
+export const deleteAlerta = async (req: Request, res: Response) => {
+  try {
+    const idAlerta = Number(req.params.id);
+    if (Number.isNaN(idAlerta)) {
+      return res.status(400).json({ message: "ID de alerta invalido" });
+    }
+
+    const alert = await Alerta.findByPk(idAlerta);
+    if (!alert) {
+      return res.status(404).json({ message: "Alerta no encontrada" });
+    }
+
+    const user = (req as any).user;
+    if (!user?.id) {
+      return res.status(401).json({ message: "No autenticado" });
+    }
+
+    const role = await Rol.findByPk(user.rol);
+    const roleName = String((role as any)?.nombre_rol || "").toLowerCase().trim();
+    const isAdmin = roleName === "admin" || roleName === "administrador";
+
+    if (!isAdmin && alert.id_usuario !== user.id) {
+      return res.status(403).json({ message: "No puedes eliminar alertas de otros usuarios" });
+    }
+
+    if (!isAdmin && alert.id_estado !== 1) {
+      return res.status(403).json({
+        message: "No puedes eliminar esta alerta porque la JAC ya cambio su estado",
+      });
+    }
+
+    await alert.destroy();
+
+    return res.json({
+      message: "Alerta eliminada con exito",
+      id_alerta: alert.id_alerta,
+    });
+  } catch (error) {
+    console.error("Error al eliminar alerta:", error);
+    return res.status(500).json({ message: "Error al eliminar la alerta" });
   }
 };
