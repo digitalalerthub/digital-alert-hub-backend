@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import {
     createAlerta,
+    deleteAlerta,
+    getAlertaById,
     listAlerta,
     updateAlerta,
 } from '../controllers/alertController';
@@ -14,7 +16,7 @@ import {
     listAlertComments,
     updateAlertComment,
 } from '../controllers/alertCommentController';
-import { verifyToken } from '../middleware/authMiddleware';
+import { optionalVerifyToken, verifyToken } from '../middleware/authMiddleware';
 import upload from '../middleware/uploadMiddleware';
 import { updateAlertaEstado } from '../controllers/alertStatusController';
 
@@ -40,10 +42,12 @@ const router = Router();
 
 router.post('/', verifyToken, uploadEvidence, createAlerta);
 router.get('/', verifyToken, listAlerta);
+router.get('/:id', optionalVerifyToken, getAlertaById);
 router.put('/:id', verifyToken, uploadEvidence, updateAlerta);
-router.get('/:id/reactions', verifyToken, listAlertReactions);
+router.delete('/:id', verifyToken, deleteAlerta);
+router.get('/:id/reactions', optionalVerifyToken, listAlertReactions);
 router.post('/:id/reactions', verifyToken, toggleAlertReaction);
-router.get('/:id/comments', verifyToken, listAlertComments);
+router.get('/:id/comments', listAlertComments);
 router.post('/:id/comments', verifyToken, createAlertComment);
 router.put('/:id/comments/:commentId', verifyToken, updateAlertComment);
 router.delete('/:id/comments/:commentId', verifyToken, deleteAlertComment);

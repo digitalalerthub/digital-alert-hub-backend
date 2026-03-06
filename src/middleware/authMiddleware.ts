@@ -1,51 +1,69 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import { NextFunction, Request, Response } from "express";
+import jwt, { JwtPayload } from "jsonwebtoken";
 
-// Interfaz personalizada para extender Request
 interface CustomRequest extends Request {
-    userId?: number;
-    rol?: string;
+  userId?: number;
+  rol?: string;
 }
 
-// Middleware para verificar el token JWT en las rutas protegidas
-export const verifyToken = (
-    req: CustomRequest,
-    res: Response,
-    next: NextFunction,
-) => {
-    const authHeader = req.headers.authorization;
+const extractBearerToken = (authHeader?: string): string | null => {
+  if (!authHeader) return null;
 
-    if (!authHeader) {
-        return res.status(403).json({ message: 'Token requerido' });
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+
+  return token;
+};
+
+const attachUserFromToken = (req: Request, token: string): boolean => {
+  const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
+
+  const userId = decoded.id || decoded.id_usuario;
+  const userRol = decoded.rol || decoded.id_rol;
+
+  if (!userId) {
+    return false;
+  }
+
+  (req as any).user = {
+    id: userId,
+    rol: userRol,
+  };
+
+  return true;
+};
+
+export const verifyToken = (req: CustomRequest, res: Response, next: NextFunction) => {
+  const token = extractBearerToken(req.headers.authorization);
+
+  if (!token) {
+    return res.status(403).json({ message: "Token requerido" });
+  }
+
+  try {
+    const userAttached = attachUserFromToken(req, token);
+    if (!userAttached) {
+      return res.status(401).json({ message: "Token invalido - falta ID de usuario" });
     }
 
-    const token = authHeader.split(' ')[1];
+    return next();
+  } catch (_error) {
+    return res.status(401).json({ message: "Token invalido o expirado" });
+  }
+};
 
-    try {
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET as string,
-        ) as JwtPayload;
+export const optionalVerifyToken = (req: Request, _res: Response, next: NextFunction) => {
+  const token = extractBearerToken(req.headers.authorization);
 
-        // IMPORTANTE: Verifica qué campos tiene el token
-        // Puede ser id_usuario en lugar de id
-        const userId = decoded.id || decoded.id_usuario;
-        const userRol = decoded.rol || decoded.id_rol;
+  if (!token) {
+    return next();
+  }
 
-        if (!userId) {
-            return res
-                .status(401)
-                .json({ message: 'Token inválido - falta ID de usuario' });
-        }
+  try {
+    attachUserFromToken(req, token);
+  } catch (_error) {
+    // Las vistas publicas no deben fallar por un token vencido o malformado.
+  }
 
-        // Guarda los datos del usuario en req.user
-        (req as any).user = {
-            id: userId,
-            rol: userRol,
-        };
-
-        next();
-    } catch (error) {
-        res.status(401).json({ message: 'Token inválido o expirado' });
-    }
+  return next();
 };

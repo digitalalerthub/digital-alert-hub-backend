@@ -89,11 +89,6 @@ export const listAlertComments = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "ID de alerta invalido" });
     }
 
-    const idUsuario = getRequestUserId(req);
-    if (!idUsuario) {
-      return res.status(401).json({ message: "No autenticado" });
-    }
-
     const alertExists = await Alerta.findByPk(idAlerta, { attributes: ["id_alerta"] });
     if (!alertExists) {
       return res.status(404).json({ message: "Alerta no encontrada" });
