@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 import Usuario from "../models/User";
 
 interface JWTPayload {
@@ -26,6 +27,11 @@ interface GmailSendResponse {
   [key: string]: unknown;
 }
 
+interface EmailSendResult {
+  id?: string;
+  provider: "gmail_api" | "smtp";
+}
+
 const googleTokenUrl = "https://oauth2.googleapis.com/token";
 const gmailSendUrl = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
@@ -35,6 +41,33 @@ const toBase64Url = (value: string): string => {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+};
+
+const canUseGmailApi = (): boolean => {
+  const clientId = process.env.GOOGLE_GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret =
+    process.env.GOOGLE_GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_GMAIL_REFRESH_TOKEN;
+  const sender = process.env.GOOGLE_GMAIL_SENDER || process.env.EMAIL_USER;
+
+  return Boolean(clientId && clientSecret && refreshToken && sender);
+};
+
+const canUseSmtp = (): boolean => {
+  return Boolean(
+    process.env.EMAIL_HOST &&
+      process.env.EMAIL_PORT &&
+      process.env.EMAIL_USER &&
+      process.env.EMAIL_PASS
+  );
 };
 
 const getGmailAccessToken = async (): Promise<string> => {
@@ -121,10 +154,89 @@ const sendGmailEmail = async (
   return data;
 };
 
+const sendSmtpEmail = async (
+  to: string,
+  subject: string,
+  html: string
+): Promise<EmailSendResult> => {
+  const host = process.env.EMAIL_HOST;
+  const port = Number(process.env.EMAIL_PORT);
+  const secure =
+    process.env.EMAIL_SECURE === "true" || (!process.env.EMAIL_SECURE && port === 465);
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+
+  if (!host || !port || !user || !pass) {
+    throw new Error(
+      "Faltan variables SMTP: EMAIL_HOST, EMAIL_PORT, EMAIL_USER y EMAIL_PASS"
+    );
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user,
+      pass,
+    },
+  });
+
+  const info = await transporter.sendMail({
+    from: process.env.GOOGLE_GMAIL_SENDER || user,
+    to,
+    subject,
+    html,
+  });
+
+  return {
+    id: info.messageId,
+    provider: "smtp",
+  };
+};
+
+const sendEmail = async (
+  to: string,
+  subject: string,
+  html: string
+): Promise<EmailSendResult> => {
+  if (canUseGmailApi()) {
+    try {
+      const info = await sendGmailEmail(to, subject, html);
+      return {
+        id: info.id,
+        provider: "gmail_api",
+      };
+    } catch (gmailError) {
+      console.error("Fallo envio con Gmail API:", gmailError);
+
+      if (!canUseSmtp()) {
+        throw new Error(
+          `No se pudo enviar el correo con Gmail API: ${getErrorMessage(gmailError)}`
+        );
+      }
+    }
+  }
+
+  if (canUseSmtp()) {
+    try {
+      return await sendSmtpEmail(to, subject, html);
+    } catch (smtpError) {
+      throw new Error(
+        `No se pudo enviar el correo con SMTP: ${getErrorMessage(smtpError)}`
+      );
+    }
+  }
+
+  throw new Error(
+    "No hay un metodo de envio configurado. Configura Gmail API o SMTP en las variables de entorno."
+  );
+};
+
 const sendPasswordResetEmail = async (
   to: string,
   resetLink: string
-): Promise<GmailSendResponse> => {
+): Promise<EmailSendResult> => {
   const subject = "Recuperacion de contrasena";
   const html = `
     <h2>Recuperacion de contrasena</h2>
@@ -133,14 +245,14 @@ const sendPasswordResetEmail = async (
     <p>Este enlace expirara en 15 minutos.</p>
   `.trim();
 
-  return sendGmailEmail(to, subject, html);
+  return sendEmail(to, subject, html);
 };
 
 const sendAccountCreatedEmail = async (
   to: string,
   nombre: string,
   verificationLink: string
-): Promise<GmailSendResponse> => {
+): Promise<EmailSendResult> => {
   const subject = "Confirma tu cuenta";
   const html = `
     <h2>Bienvenido a Digital Alert Hub</h2>
@@ -150,7 +262,23 @@ const sendAccountCreatedEmail = async (
     <p>Este enlace expira en 24 horas.</p>
   `.trim();
 
-  return sendGmailEmail(to, subject, html);
+  return sendEmail(to, subject, html);
+};
+
+const buildVerificationLink = (
+  req: Request,
+  user: Pick<Usuario, "id_usuario" | "email">
+): string => {
+  const verificationToken = jwt.sign(
+    { id: user.id_usuario, email: user.email, type: "email_verification" },
+    process.env.JWT_SECRET as string,
+    { expiresIn: "24h" }
+  );
+
+  const backendBaseUrl =
+    process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+
+  return `${backendBaseUrl}/api/auth/verify-account/${verificationToken}`;
 };
 
 // Registro
@@ -176,17 +304,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       estado: false,
     });
 
-    const verificationToken = jwt.sign(
-      { id: user.id_usuario, email: user.email, type: "email_verification" },
-      process.env.JWT_SECRET as string,
-      { expiresIn: "24h" }
-    );
-
-    const backendBaseUrl =
-      process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
-    const verificationLink = `${backendBaseUrl}/api/auth/verify-account/${verificationToken}`;
+    const verificationLink = buildVerificationLink(req, user);
 
     let emailSent = false;
+    let emailProvider: EmailSendResult["provider"] | null = null;
 
     try {
       const info = await sendAccountCreatedEmail(
@@ -194,8 +315,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         user.nombre,
         verificationLink
       );
-      console.log("Correo de confirmacion enviado:", info.id);
+      console.log("Correo de confirmacion enviado:", info.provider, info.id);
       emailSent = true;
+      emailProvider = info.provider;
     } catch (mailError) {
       console.error("No se pudo enviar correo de confirmacion:", mailError);
     }
@@ -205,6 +327,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         ? "Usuario registrado. Revisa tu correo para activar la cuenta."
         : "Usuario registrado, pero no se pudo enviar el correo de activacion.",
       email_sent: emailSent,
+      email_provider: emailProvider,
       user: {
         id_usuario: user.id_usuario,
         nombre: user.nombre,
@@ -337,15 +460,60 @@ export const forgotPassword = async (
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
     console.log("Link de recuperacion:", resetLink);
 
-    console.log("Enviando correo con Gmail API desde:", process.env.GOOGLE_GMAIL_SENDER || process.env.EMAIL_USER);
+    console.log(
+      "Enviando correo de recuperacion desde:",
+      process.env.GOOGLE_GMAIL_SENDER || process.env.EMAIL_USER
+    );
     const info = await sendPasswordResetEmail(email, resetLink);
 
-    console.log("Correo enviado con Gmail API:", info.id);
-    res.json({ message: "Correo de recuperacion enviado correctamente" });
+    console.log("Correo de recuperacion enviado:", info.provider, info.id);
+    res.json({
+      message: "Correo de recuperacion enviado correctamente",
+      email_provider: info.provider,
+    });
   } catch (error: any) {
     console.error("Error en forgotPassword:", error);
     res.status(500).json({
       message: "Error al enviar el correo",
+      error: error.message || error,
+    });
+  }
+};
+
+export const resendVerificationEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { email } = req.body;
+
+  try {
+    const user = await Usuario.findOne({ where: { email } });
+    if (!user) {
+      res.status(404).json({ message: "Usuario no encontrado" });
+      return;
+    }
+
+    if (user.estado) {
+      res.status(400).json({ message: "La cuenta ya esta verificada" });
+      return;
+    }
+
+    const verificationLink = buildVerificationLink(req, user);
+    const info = await sendAccountCreatedEmail(
+      user.email,
+      user.nombre,
+      verificationLink
+    );
+
+    console.log("Correo de verificacion reenviado:", info.provider, info.id);
+    res.json({
+      message: "Correo de verificacion reenviado correctamente",
+      email_provider: info.provider,
+    });
+  } catch (error: any) {
+    console.error("Error en resendVerificationEmail:", error);
+    res.status(500).json({
+      message: "Error al reenviar el correo de verificacion",
       error: error.message || error,
     });
   }
