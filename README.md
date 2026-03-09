@@ -194,9 +194,9 @@ npm run sync:locations
 
 ---
 
-##  Nodemailer - Configuracion de correos
+##  Correos - Gmail API y SMTP
 
-El backend incluye la integracion con **Nodemailer**, lo que permite:
+El backend intenta enviar correos con **Gmail API** y, si ese flujo falla o no esta configurado, usa **Nodemailer SMTP** como fallback. Esto permite:
 - Enviar correos de **verificacion de cuenta**.
 - Recuperar contrasenas olvidadas.
 - Notificar a usuarios o administradores sobre **nuevas alertas registradas**.
