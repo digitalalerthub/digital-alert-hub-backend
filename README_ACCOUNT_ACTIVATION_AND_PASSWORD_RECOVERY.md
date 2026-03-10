@@ -3,7 +3,7 @@
 Este documento registra el proceso exacto implementado en este backend para:
 - Activar cuentas por confirmacion de correo
 - Recuperar contrasena por correo
-- Enviar correos usando Gmail API (HTTPS), compatible con Render (incluyendo plan free)
+- Enviar correos usando Gmail API (HTTPS) con fallback SMTP para entornos locales
 
 Tambien incluye los errores reales encontrados y su solucion.
 
@@ -12,9 +12,10 @@ Tambien incluye los errores reales encontrados y su solucion.
 El SMTP desde instancias free de Render suele estar bloqueado en puertos de correo (25/465/587).
 Por eso, en local puede funcionar SMTP, pero en deploy falla por timeout.
 
-Solucion final aplicada:
-- Usar Gmail API por HTTPS (no SMTP)
-- Guardar tokens en variables de entorno
+Solucion aplicada:
+- Intentar Gmail API por HTTPS como metodo principal
+- Usar SMTP como fallback cuando Gmail API no este disponible
+- Guardar tokens y credenciales en variables de entorno
 - Usar endpoints del backend para verificacion y recuperacion
 
 ## 2) Flujo actual del backend
@@ -28,6 +29,12 @@ Solucion final aplicada:
 5. El usuario abre el enlace
 6. El backend cambia `estado=true`
 7. El backend redirige a `FRONTEND_URL/login?verified=1`
+
+### Reenvio de verificacion
+1. `POST /api/auth/resend-verification`
+2. Recibe `email` en el body
+3. Si la cuenta existe y sigue inactiva, el backend genera un nuevo token
+4. El backend reenvia el correo usando Gmail API o SMTP fallback
 
 ### Comportamiento de login
 - Si la cuenta no esta verificada (`estado=false`), login responde `403`.
@@ -139,6 +146,7 @@ Actualmente el registro usa por defecto `id_rol=2` (usuario).
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/verify-account/:token`
+- `POST /api/auth/resend-verification`
 - `POST /api/auth/forgot-password`
 - `POST /api/auth/reset-password/:token`
 
