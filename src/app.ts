@@ -7,6 +7,7 @@ dotenv.config();
 
 import authRoutes from "./routes/authRoutes";
 import alertRoutes from "./routes/alertRoutes";
+import reportRoutes from "./routes/reportRoutes";
 import statsRoutes from "./routes/statsRoutes";
 import profileRoutes from "./routes/profileRoutes";
 import userRoutes from "./routes/userRoutes";
@@ -37,6 +38,7 @@ app.use(passport.initialize()); // <-- NECESARIO PARA GOOGLE
 app.use("/api/auth", authRoutes);
 app.use("/api/auth", authGoogleRoutes); // <-- AÑADE Google Login (línea 20)
 app.use("/api/alerts", alertRoutes);
+app.use("/api/reports", reportRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/profile", profileRoutes);
 
