@@ -38,6 +38,9 @@ type EvidenceRow = AlertEvidencePayload & {
   id_alerta: number;
 };
 
+const isMissingCloudinaryConfigurationError = (error: unknown): boolean =>
+  error instanceof Error && error.message === "Cloudinary no configurado";
+
 const uploadEvidenceToCloudinary = async (file: Express.Multer.File) => {
   if (
     !process.env.CLOUDINARY_CLOUD_NAME ||
@@ -384,6 +387,12 @@ export const createAlerta = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error al crear alerta:", error);
+    if (isMissingCloudinaryConfigurationError(error)) {
+      return res.status(503).json({
+        message:
+          "El servicio de evidencias no esta configurado en el backend. Configura CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET.",
+      });
+    }
     res.status(500).json({ error: "Error al crear alerta" });
   }
 };
@@ -597,6 +606,12 @@ export const updateAlerta = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error al actualizar alerta:", error);
+    if (isMissingCloudinaryConfigurationError(error)) {
+      return res.status(503).json({
+        message:
+          "El servicio de evidencias no esta configurado en el backend. Configura CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET.",
+      });
+    }
     res.status(500).json({ message: "Error al actualizar la alerta" });
   }
 };
