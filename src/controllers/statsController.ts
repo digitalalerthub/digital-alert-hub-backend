@@ -7,17 +7,18 @@ export const getStats = async (req: Request, res: Response) => {
 
     const ciudadanos = await Usuario.count();
     const alertasTotales = await Alerta.count();
-    const alertasAtendidas = await Alerta.count({
-      where: { id_estado: 1 }
+    const alertasResueltas = await Alerta.count({
+      where: { id_estado: 3 }
     });
     const alertasPendientes = await Alerta.count({
-      where: { id_estado: 2 }
+      where: { id_estado: 1 }
     });
 
     return res.json({
       ciudadanos,
       alertasTotales,
-      alertasAtendidas,
+      alertasAtendidas: alertasResueltas,
+      alertasResueltas,
       alertasPendientes
     });
   } catch (error) {
