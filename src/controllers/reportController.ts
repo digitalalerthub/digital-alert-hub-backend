@@ -19,6 +19,17 @@ type MonthRange = {
   end: Date;
 };
 
+type YearRange = {
+  value: number;
+  start: Date;
+  end: Date;
+};
+
+type ReportCatalogRow = {
+  categoria: string;
+  created_at: Date;
+};
+
 const ESTADO_LABEL_BY_ID: Record<number, string> = {
   1: "Nueva",
   2: "En Progreso",
@@ -35,6 +46,25 @@ const parsePositiveIntQuery = (value: unknown): number | undefined | null => {
   }
 
   return parsed;
+};
+
+const parseYearQuery = (value: unknown): YearRange | undefined | null => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (!/^\d{4}$/.test(trimmed)) return null;
+
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed < 2000) {
+    return null;
+  }
+
+  return {
+    value: parsed,
+    start: new Date(Date.UTC(parsed, 0, 1, 0, 0, 0, 0)),
+    end: new Date(Date.UTC(parsed + 1, 0, 1, 0, 0, 0, 0)),
+  };
 };
 
 const parseMonthQuery = (value: unknown): MonthRange | undefined | null => {
@@ -60,6 +90,15 @@ const parseMonthQuery = (value: unknown): MonthRange | undefined | null => {
     start,
     end,
   };
+};
+
+const parseCategoryQuery = (value: unknown): string | undefined | null => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed;
 };
 
 const getMonthKey = (date: Date): string => {
@@ -105,17 +144,25 @@ export const getAlertReports = async (req: Request, res: Response) => {
     const idEstado = parsePositiveIntQuery(req.query.id_estado);
     const idComuna = parsePositiveIntQuery(req.query.id_comuna);
     const idBarrio = parsePositiveIntQuery(req.query.id_barrio);
+    const year = parseYearQuery(req.query.year);
     const month = parseMonthQuery(req.query.month);
+    const category = parseCategoryQuery(req.query.category);
 
-    if (idEstado === null || idComuna === null || idBarrio === null) {
+    if (idEstado === null || idComuna === null || idBarrio === null || year === null) {
       return res.status(400).json({
-        message: "Los filtros id_estado, id_comuna e id_barrio deben ser enteros positivos",
+        message: "Los filtros id_estado, id_comuna, id_barrio y year deben ser validos",
       });
     }
 
     if (month === null) {
       return res.status(400).json({
         message: "El filtro month debe usar el formato YYYY-MM",
+      });
+    }
+
+    if (category === null) {
+      return res.status(400).json({
+        message: "El filtro category debe ser una cadena valida",
       });
     }
 
@@ -133,19 +180,48 @@ export const getAlertReports = async (req: Request, res: Response) => {
       where.id_barrio = idBarrio;
     }
 
-    if (month) {
-      where.created_at = {
-        [Op.gte]: month.start,
-        [Op.lt]: month.end,
-      };
+    if (category !== undefined) {
+      where.categoria = category;
     }
 
-    const alertas = (await Alerta.findAll({
-      where,
-      attributes: ["id_alerta", "id_estado", "id_comuna", "id_barrio", "categoria", "created_at"],
-      order: [["created_at", "ASC"]],
-      raw: true,
-    })) as ReportAlertRow[];
+    let createdAtStart: Date | undefined;
+    let createdAtEnd: Date | undefined;
+
+    if (year) {
+      createdAtStart = year.start;
+      createdAtEnd = year.end;
+    }
+
+    if (month) {
+      createdAtStart =
+        createdAtStart && createdAtStart > month.start ? createdAtStart : month.start;
+      createdAtEnd = createdAtEnd && createdAtEnd < month.end ? createdAtEnd : month.end;
+    }
+
+    if (createdAtStart || createdAtEnd) {
+      where.created_at = {};
+
+      if (createdAtStart) {
+        (where.created_at as Record<symbol, Date>)[Op.gte] = createdAtStart;
+      }
+
+      if (createdAtEnd) {
+        (where.created_at as Record<symbol, Date>)[Op.lt] = createdAtEnd;
+      }
+    }
+
+    const [alertas, catalogSource] = (await Promise.all([
+      Alerta.findAll({
+        where,
+        attributes: ["id_alerta", "id_estado", "id_comuna", "id_barrio", "categoria", "created_at"],
+        order: [["created_at", "ASC"]],
+        raw: true,
+      }),
+      Alerta.findAll({
+        attributes: ["categoria", "created_at"],
+        raw: true,
+      }),
+    ])) as [ReportAlertRow[], ReportCatalogRow[]];
 
     const comunaIds = Array.from(
       new Set(
@@ -218,12 +294,30 @@ export const getAlertReports = async (req: Request, res: Response) => {
       }
     }
 
+    const categoryCatalog = Array.from(
+      new Set(
+        catalogSource
+          .map((alerta) => alerta.categoria?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
+    ).sort((a, b) => a.localeCompare(b, "es"));
+
+    const yearCatalog = Array.from(
+      new Set(
+        catalogSource
+          .map((alerta) => new Date(alerta.created_at).getUTCFullYear())
+          .filter((value) => Number.isInteger(value))
+      )
+    ).sort((a, b) => b - a);
+
     return res.json({
       filters: {
         id_estado: idEstado ?? null,
         id_comuna: idComuna ?? null,
         id_barrio: idBarrio ?? null,
+        year: year?.value ?? null,
         month: month?.value ?? null,
+        category: category ?? null,
       },
       kpis: {
         total: alertas.length,
@@ -270,6 +364,8 @@ export const getAlertReports = async (req: Request, res: Response) => {
             nombre: barrio.nombre,
           }))
           .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+        categorias: categoryCatalog,
+        years: yearCatalog,
       },
       generated_at: new Date().toISOString(),
     });
