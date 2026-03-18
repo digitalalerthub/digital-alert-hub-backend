@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
+import { col, fn } from "sequelize";
 import cloudinary from "../config/cloudinary";
 import Alerta from "../models/Alert";
+import AlertReaction from "../models/AlertReaction";
 import Barrio from "../models/Barrio";
 import Comuna from "../models/Comuna";
 import Evidence from "../models/Evidence";
@@ -36,6 +38,11 @@ type BarrioNameRow = {
 
 type EvidenceRow = AlertEvidencePayload & {
   id_alerta: number;
+};
+
+type ReactionAggregateRow = {
+  id_alerta: number;
+  total: string;
 };
 
 const isMissingCloudinaryConfigurationError = (error: unknown): boolean =>
@@ -394,6 +401,87 @@ export const createAlerta = async (req: Request, res: Response) => {
       });
     }
     res.status(500).json({ error: "Error al crear alerta" });
+  }
+};
+
+const PRIORITY_WEIGHT: Record<string, number> = {
+  alta: 3,
+  media: 2,
+  baja: 1,
+};
+
+const STATUS_WEIGHT: Record<number, number> = {
+  1: 3,
+  2: 2,
+  3: 1,
+  4: 0,
+};
+
+const getPriorityWeight = (prioridad?: string | null): number => {
+  if (!prioridad) return 0;
+  return PRIORITY_WEIGHT[prioridad.trim().toLowerCase()] ?? 0;
+};
+
+export const listFeaturedAlertas = async (_req: Request, res: Response) => {
+  try {
+    const alertas = await Alerta.findAll({
+      where: {
+        id_estado: [1, 2, 3],
+      },
+      order: [["created_at", "DESC"]],
+      limit: 60,
+    });
+
+    if (alertas.length === 0) {
+      return res.json([]);
+    }
+
+    const reactionRowsRaw = await AlertReaction.findAll({
+      attributes: ["id_alerta", [fn("COUNT", col("id_alerta_reaccion")), "total"]],
+      where: {
+        id_alerta: alertas.map((alerta) => alerta.id_alerta),
+      },
+      group: ["id_alerta"],
+      raw: true,
+    });
+
+    const reactionRows = reactionRowsRaw as unknown as ReactionAggregateRow[];
+    const reactionCountByAlertId = new Map<number, number>();
+    for (const row of reactionRows) {
+      reactionCountByAlertId.set(row.id_alerta, Number(row.total) || 0);
+    }
+
+    const featuredAlertas = [...alertas]
+      .sort((a, b) => {
+        const reactionDiff =
+          (reactionCountByAlertId.get(b.id_alerta) ?? 0) -
+          (reactionCountByAlertId.get(a.id_alerta) ?? 0);
+        if (reactionDiff !== 0) return reactionDiff;
+
+        const priorityDiff =
+          getPriorityWeight(b.prioridad) - getPriorityWeight(a.prioridad);
+        if (priorityDiff !== 0) return priorityDiff;
+
+        const statusDiff =
+          (STATUS_WEIGHT[b.id_estado] ?? 0) - (STATUS_WEIGHT[a.id_estado] ?? 0);
+        if (statusDiff !== 0) return statusDiff;
+
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      })
+      .slice(0, 5);
+
+    const payload = await buildAlertPayloads(featuredAlertas);
+    const enrichedPayload = payload.map((alerta) => ({
+      ...alerta,
+      total_reacciones: reactionCountByAlertId.get(alerta.id_alerta) ?? 0,
+    }));
+
+    return res.json(enrichedPayload);
+  } catch (error) {
+    console.error("Error al obtener alertas destacadas:", error);
+    return res.status(500).json({ message: "Error al obtener alertas destacadas" });
   }
 };
 
