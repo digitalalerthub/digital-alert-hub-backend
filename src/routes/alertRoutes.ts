@@ -3,6 +3,7 @@ import {
     createAlerta,
     deleteAlerta,
     getAlertaById,
+    listFeaturedAlertas,
     listAlerta,
     updateAlerta,
 } from '../controllers/alertController';
@@ -41,6 +42,7 @@ const uploadEvidence = (req: Request, res: Response, next: NextFunction) => {
 const router = Router();
 
 router.post('/', verifyToken, uploadEvidence, createAlerta);
+router.get('/featured', listFeaturedAlertas);
 router.get('/', verifyToken, listAlerta);
 router.get('/:id', optionalVerifyToken, getAlertaById);
 router.put('/:id', verifyToken, uploadEvidence, updateAlerta);

@@ -137,7 +137,7 @@ const buildRecentMonthKeys = (selectedMonth?: string): string[] => {
 export const getAlertReports = async (req: Request, res: Response) => {
   try {
     const userRole = Number((req as any).user?.rol);
-    if (userRole !== 1 && userRole !== 3) {
+    if (userRole !== 1 && userRole !== 2 && userRole !== 3) {
       return res.status(403).json({ message: "No autorizado para consultar reportes" });
     }
 
