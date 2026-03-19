@@ -3,6 +3,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import Usuario from "../models/User";
+import {
+  isRecaptchaConfigured,
+  verifyRecaptchaToken,
+} from "../services/recaptchaService";
 
 interface JWTPayload {
   id: number;
@@ -281,14 +285,56 @@ const buildVerificationLink = (
   return `${backendBaseUrl}/api/auth/verify-account/${verificationToken}`;
 };
 
+const validateRecaptcha = async (
+  req: Request,
+  res: Response,
+  captchaToken: unknown
+): Promise<boolean> => {
+  if (!isRecaptchaConfigured()) {
+    return true;
+  }
+
+  if (typeof captchaToken !== "string" || !captchaToken.trim()) {
+    res.status(400).json({ message: "Debes completar el reCAPTCHA." });
+    return false;
+  }
+
+  try {
+    const recaptchaResult = await verifyRecaptchaToken(captchaToken, req.ip);
+
+    if (!recaptchaResult.success) {
+      console.warn("reCAPTCHA invalido:", recaptchaResult.errorCodes);
+      res.status(400).json({
+        message: "La validacion reCAPTCHA fallo. Intentalo otra vez.",
+      });
+      return false;
+    }
+
+    return true;
+  } catch (recaptchaError) {
+    console.error("Error verificando reCAPTCHA:", recaptchaError);
+    res.status(502).json({
+      message:
+        "No se pudo validar reCAPTCHA en este momento. Intentalo de nuevo.",
+    });
+    return false;
+  }
+};
+
 // Registro
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { nombre, apellido, email, contrasena, telefono, id_rol } = req.body;
+  const { nombre, apellido, email, contrasena, telefono, id_rol, captchaToken } =
+    req.body;
 
   try {
     const existe = await Usuario.findOne({ where: { email } });
     if (existe) {
       res.status(409).json({ message: "El correo ya esta registrado" });
+      return;
+    }
+
+    const recaptchaOk = await validateRecaptcha(req, res, captchaToken);
+    if (!recaptchaOk) {
       return;
     }
 
@@ -343,9 +389,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 // Login
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { email, contrasena } = req.body;
+  const { email, contrasena, captchaToken } = req.body;
 
   try {
+    const recaptchaOk = await validateRecaptcha(req, res, captchaToken);
+    if (!recaptchaOk) {
+      return;
+    }
+
     const user = await Usuario.findOne({ where: { email } });
     if (!user) {
       res.status(404).json({ message: "Usuario no encontrado" });
