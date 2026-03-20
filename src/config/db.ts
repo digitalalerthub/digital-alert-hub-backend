@@ -229,6 +229,29 @@ const ensureAlertCommentSchema = async (): Promise<void> => {
   `);
 };
 
+const ensureUserAuthSchema = async (): Promise<void> => {
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN;
+  `);
+
+  await sequelize.query(`
+    UPDATE usuarios
+    SET email_verificado = COALESCE(email_verificado, estado, false)
+    WHERE email_verificado IS NULL;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN email_verificado SET DEFAULT false;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN email_verificado SET NOT NULL;
+  `);
+};
+
 export const connectDB = async (): Promise<void> => {
   try {
     await sequelize.authenticate();
@@ -245,6 +268,9 @@ export const connectDB = async (): Promise<void> => {
 
     await ensureAlertCommentSchema();
     console.log("Esquema de comentarios por alerta validado.");
+
+    await ensureUserAuthSchema();
+    console.log("Estado de verificacion y activacion de usuarios validado.");
 
     // Mantener sync global solo bajo bandera explicita.
     const shouldSync = String(process.env.DB_SYNC).toLowerCase() === "true";

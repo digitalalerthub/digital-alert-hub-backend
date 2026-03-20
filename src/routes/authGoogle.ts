@@ -20,6 +20,7 @@ router.get('/google/callback', passport.authenticate('google', { session: false 
     try {
         const googleEmail = req.user?.emails?.[0]?.value;
         const displayName = req.user?.displayName || '';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
         if (!googleEmail) {
             return res.status(400).json({ message: 'Google no devolvio email' });
@@ -42,7 +43,18 @@ router.get('/google/callback', passport.authenticate('google', { session: false 
                 telefono: null,
                 id_rol: 2,
                 estado: true,
+                email_verificado: true,
             });
+        }
+
+        if (!user.estado) {
+            return res.redirect(
+                `${frontendUrl}/login?inactive=1`,
+            );
+        }
+
+        if (!user.email_verificado) {
+            await user.update({ email_verificado: true });
         }
 
         const token = jwt.sign(
@@ -54,8 +66,6 @@ router.get('/google/callback', passport.authenticate('google', { session: false 
             process.env.JWT_SECRET!,
             { expiresIn: '8h' },
         );
-
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
         // Redirigir al callback del frontend con el token
         res.redirect(`${frontendUrl}/auth/callback?token=${token}`);

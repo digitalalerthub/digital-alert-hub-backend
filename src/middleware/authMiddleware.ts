@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import Usuario from "../models/User";
 
 interface CustomRequest extends Request {
   userId?: number;
@@ -33,7 +34,11 @@ const attachUserFromToken = (req: Request, token: string): boolean => {
   return true;
 };
 
-export const verifyToken = (req: CustomRequest, res: Response, next: NextFunction) => {
+export const verifyToken = async (
+  req: CustomRequest,
+  res: Response,
+  next: NextFunction
+) => {
   const token = extractBearerToken(req.headers.authorization);
 
   if (!token) {
@@ -44,6 +49,22 @@ export const verifyToken = (req: CustomRequest, res: Response, next: NextFunctio
     const userAttached = attachUserFromToken(req, token);
     if (!userAttached) {
       return res.status(401).json({ message: "Token invalido - falta ID de usuario" });
+    }
+
+    const userId = (req as any).user?.id;
+    const user = await Usuario.findByPk(userId, {
+      attributes: ["id_usuario", "estado"],
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: "Usuario no encontrado" });
+    }
+
+    if (!user.estado) {
+      return res.status(403).json({
+        message:
+          "Tu cuenta esta inactiva. Contacta al administrador para reactivarla.",
+      });
     }
 
     return next();
