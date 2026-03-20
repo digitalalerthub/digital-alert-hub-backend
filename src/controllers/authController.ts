@@ -347,7 +347,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       contrasena: hashedPassword,
       telefono,
       id_rol: id_rol || 2,
-      estado: false,
+      estado: true,
+      email_verificado: false,
     });
 
     const verificationLink = buildVerificationLink(req, user);
@@ -412,6 +413,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     if (!user.estado) {
       res.status(403).json({
         message:
+          "Tu cuenta esta inactiva. Contacta al administrador para reactivarla.",
+      });
+      return;
+    }
+
+    if (!user.email_verificado) {
+      res.status(403).json({
+        message:
           "Debes confirmar tu correo para activar la cuenta antes de iniciar sesion.",
       });
       return;
@@ -466,8 +475,8 @@ export const verifyAccount = async (
       return;
     }
 
-    if (!user.estado) {
-      await user.update({ estado: true });
+    if (!user.email_verificado) {
+      await user.update({ email_verificado: true, estado: true });
     }
 
     const frontendUrl = process.env.FRONTEND_URL;
@@ -544,7 +553,7 @@ export const resendVerificationEmail = async (
       return;
     }
 
-    if (user.estado) {
+    if (user.email_verificado) {
       res.status(400).json({ message: "La cuenta ya esta verificada" });
       return;
     }
