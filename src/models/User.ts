@@ -1,9 +1,7 @@
 import { DataTypes, Model, Optional } from "sequelize";
 import { sequelize } from "../config/db";
 
-//  Interface que define los atributos del modelo 'Usuario'.
 interface UsuarioAttributes {
-  // Básicamente describe cómo es la tabla en la base de datos.
   id_usuario: number;
   id_rol: number;
   nombre: string;
@@ -12,20 +10,18 @@ interface UsuarioAttributes {
   contrasena: string;
   telefono?: string | null;
   estado: boolean;
+  email_verificado: boolean;
   created_at?: Date;
   updated_at?: Date;
   deleted_at?: Date | null;
 }
 
-//  Define qué campos son opcionales al crear un usuario.
-type UsuarioCreationAttributes = Optional<UsuarioAttributes, "id_usuario">; // En este caso, 'id_usuario' porque lo genera automáticamente la BD.
+type UsuarioCreationAttributes = Optional<UsuarioAttributes, "id_usuario">;
 
-//  Clase que representa el modelo en Sequelize.
-class Usuario // Usa los tipos anteriores para asegurar que todo esté bien definido.
+class Usuario
   extends Model<UsuarioAttributes, UsuarioCreationAttributes>
   implements UsuarioAttributes
 {
-  // Campos del modelo (tipados igual que la interface)
   public id_usuario!: number;
   public id_rol!: number;
   public nombre!: string;
@@ -34,17 +30,17 @@ class Usuario // Usa los tipos anteriores para asegurar que todo esté bien defi
   public contrasena!: string;
   public telefono?: string | null;
   public estado!: boolean;
+  public email_verificado!: boolean;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
   public readonly deleted_at!: Date | null;
 }
 
-//  Definición del modelo Sequelize -> cómo se mapea con la tabla 'usuarios'
 Usuario.init(
   {
     id_usuario: {
       type: DataTypes.INTEGER,
-      autoIncrement: true, //  id_usuario: clave primaria, autoincremental
+      autoIncrement: true,
       primaryKey: true,
     },
     id_rol: {
@@ -64,7 +60,7 @@ Usuario.init(
       allowNull: false,
       unique: true,
       validate: {
-        isEmail: true, // valida que tenga formato de correo
+        isEmail: true,
       },
     },
     contrasena: {
@@ -78,12 +74,17 @@ Usuario.init(
     estado: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true, // por defecto el usuario está activo
+      defaultValue: true,
+    },
+    email_verificado: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
   },
   {
-    sequelize, // conexión con la base de datos
-    tableName: "usuarios", // nombre de la tabla real
+    sequelize,
+    tableName: "usuarios",
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",

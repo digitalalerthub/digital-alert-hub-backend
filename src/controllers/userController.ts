@@ -41,6 +41,7 @@ export const createUserByAdmin = async (req: Request, res: Response) => {
       telefono: telefono || null,
       id_rol: id_rol || 2, // por defecto rol normal
       estado: true,
+      email_verificado: true,
     });
 
     res.status(201).json({

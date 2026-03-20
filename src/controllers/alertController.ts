@@ -48,6 +48,22 @@ type ReactionAggregateRow = {
 const isMissingCloudinaryConfigurationError = (error: unknown): boolean =>
   error instanceof Error && error.message === "Cloudinary no configurado";
 
+const OWNER_FULL_EDIT_STATE = 1;
+const OWNER_EVIDENCE_ONLY_STATE = 2;
+const OWNER_LOCKED_STATES = new Set([3, 4]);
+
+const hasRestrictedAlertFieldChanges = (body: Request["body"]): boolean =>
+  [
+    "titulo",
+    "descripcion",
+    "categoria",
+    "ubicacion",
+    "prioridad",
+    "id_comuna",
+    "id_barrio",
+    "evidencias_eliminadas",
+  ].some((field) => body[field] !== undefined) || parseBooleanFlag(body.eliminar_todas_evidencias);
+
 const uploadEvidenceToCloudinary = async (file: Express.Multer.File) => {
   if (
     !process.env.CLOUDINARY_CLOUD_NAME ||
@@ -536,50 +552,79 @@ export const updateAlerta = async (req: Request, res: Response) => {
     const role = await Rol.findByPk(user.rol);
     const roleName = String((role as any)?.nombre_rol || "").toLowerCase().trim();
     const isAdmin = roleName === "admin" || roleName === "administrador";
+    const isOwner = alert.id_usuario === user.id;
 
-    if (!isAdmin && alert.id_usuario !== user.id) {
+    if (!isAdmin && !isOwner) {
       return res.status(403).json({ message: "No puedes editar alertas de otros usuarios" });
     }
 
-    if (!isAdmin && alert.id_estado !== 1) {
+    const evidenceFiles = getUploadedEvidenceFiles(req);
+    const ownerEvidenceOnlyMode =
+      !isAdmin && isOwner && alert.id_estado === OWNER_EVIDENCE_ONLY_STATE;
+    const ownerLockedMode = !isAdmin && isOwner && OWNER_LOCKED_STATES.has(alert.id_estado);
+
+    if (ownerLockedMode) {
+      return res.status(403).json({
+        message:
+          "No puedes modificar esta alerta porque ya fue marcada como resuelta o falsa alerta",
+      });
+    }
+
+    if (!isAdmin && !ownerEvidenceOnlyMode && alert.id_estado !== OWNER_FULL_EDIT_STATE) {
       return res.status(403).json({
         message: "No puedes editar esta alerta porque la JAC ya cambio su estado",
       });
     }
 
+    if (ownerEvidenceOnlyMode) {
+      if (hasRestrictedAlertFieldChanges(req.body)) {
+        return res.status(403).json({
+          message:
+            "Cuando la alerta esta en progreso solo puedes agregar nuevas evidencias",
+        });
+      }
+
+      if (evidenceFiles.length === 0) {
+        return res.status(400).json({
+          message:
+            "Agrega al menos una nueva evidencia para actualizar una alerta en progreso",
+        });
+      }
+    }
+
     const { titulo, descripcion, categoria, ubicacion, prioridad, id_comuna, id_barrio } = req.body;
 
-    if (typeof titulo === "string") {
+    if (!ownerEvidenceOnlyMode && typeof titulo === "string") {
       if (titulo.trim().length === 0) {
         return res.status(400).json({ message: "El titulo no puede estar vacio" });
       }
       alert.titulo = titulo.trim();
     }
 
-    if (typeof descripcion === "string") {
+    if (!ownerEvidenceOnlyMode && typeof descripcion === "string") {
       if (descripcion.trim().length === 0) {
         return res.status(400).json({ message: "La descripcion no puede estar vacia" });
       }
       alert.descripcion = descripcion.trim();
     }
 
-    if (typeof categoria === "string") {
+    if (!ownerEvidenceOnlyMode && typeof categoria === "string") {
       if (categoria.trim().length === 0) {
         return res.status(400).json({ message: "La categoria no puede estar vacia" });
       }
       alert.categoria = categoria.trim();
     }
 
-    if (typeof ubicacion === "string") {
+    if (!ownerEvidenceOnlyMode && typeof ubicacion === "string") {
       alert.ubicacion = ubicacion.trim();
     }
 
-    if (typeof prioridad === "string") {
+    if (!ownerEvidenceOnlyMode && typeof prioridad === "string") {
       alert.prioridad = prioridad.trim();
     }
 
-    const parsedComuna = parseOptionalPositiveInt(id_comuna);
-    const parsedBarrio = parseOptionalPositiveInt(id_barrio);
+    const parsedComuna = ownerEvidenceOnlyMode ? undefined : parseOptionalPositiveInt(id_comuna);
+    const parsedBarrio = ownerEvidenceOnlyMode ? undefined : parseOptionalPositiveInt(id_barrio);
 
     if (parsedComuna === null || parsedBarrio === null) {
       return res.status(400).json({ message: "Comuna y barrio deben ser numericos validos" });
@@ -610,8 +655,6 @@ export const updateAlerta = async (req: Request, res: Response) => {
     }
 
     const deleteAllEvidence = parseBooleanFlag(req.body.eliminar_todas_evidencias);
-
-    const evidenceFiles = getUploadedEvidenceFiles(req);
     if (evidenceFiles.length > 0) {
       const evidenceValidationError = validateEvidenceImages(evidenceFiles);
       if (evidenceValidationError) {
@@ -729,9 +772,12 @@ export const deleteAlerta = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "No puedes eliminar alertas de otros usuarios" });
     }
 
-    if (!isAdmin && alert.id_estado !== 1) {
+    if (!isAdmin && alert.id_estado !== OWNER_FULL_EDIT_STATE) {
       return res.status(403).json({
-        message: "No puedes eliminar esta alerta porque la JAC ya cambio su estado",
+        message:
+          alert.id_estado === OWNER_EVIDENCE_ONLY_STATE
+            ? "No puedes eliminar esta alerta porque ya esta en progreso"
+            : "No puedes eliminar esta alerta porque ya fue marcada como resuelta o falsa alerta",
       });
     }
 
