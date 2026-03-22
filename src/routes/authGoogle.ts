@@ -7,6 +7,19 @@ import Usuario from '../models/User';
 
 const router = Router();
 
+const normalizeBaseUrl = (value?: string | null): string | null => {
+    if (typeof value !== 'string') return null;
+
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^https?:\/\//i.test(trimmed)) {
+        return trimmed.replace(/\/+$/, '');
+    }
+
+    return `https://${trimmed.replace(/^\/+/, '').replace(/\/+$/, '')}`;
+};
+
 router.get('/google', (req, res, next) => {
     passport.authenticate('google', {
         scope: ['profile', 'email'],
@@ -20,7 +33,8 @@ router.get('/google/callback', passport.authenticate('google', { session: false 
     try {
         const googleEmail = req.user?.emails?.[0]?.value;
         const displayName = req.user?.displayName || '';
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl =
+            normalizeBaseUrl(process.env.FRONTEND_URL) || 'http://localhost:5173';
 
         if (!googleEmail) {
             return res.status(400).json({ message: 'Google no devolvio email' });
@@ -45,6 +59,13 @@ router.get('/google/callback', passport.authenticate('google', { session: false 
                 estado: true,
                 email_verificado: true,
             });
+        }
+
+        if (user.bloqueo_hasta && user.bloqueo_hasta > new Date()) {
+            const lockedUntil = encodeURIComponent(user.bloqueo_hasta.toISOString());
+            return res.redirect(
+                `${frontendUrl}/login?locked_until=${lockedUntil}`,
+            );
         }
 
         if (!user.estado) {

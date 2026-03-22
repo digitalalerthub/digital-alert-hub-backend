@@ -3,7 +3,7 @@ import { sequelize } from "../config/db";
 
 interface AlertaAttributes {
   id_alerta: number;
-  id_usuario: number;
+  id_usuario: number | null;
   id_estado: number;
   id_comuna?: number;
   id_barrio?: number;
@@ -38,7 +38,7 @@ class Alerta
   implements AlertaAttributes
 {
   public id_alerta!: number;
-  public id_usuario!: number;
+  public id_usuario!: number | null;
   public id_estado!: number;
   public id_comuna?: number;
   public id_barrio?: number;
@@ -64,8 +64,12 @@ Alerta.init(
     },
     id_usuario: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       field: "id_usuario",
+      references: {
+        model: "usuarios",
+        key: "id_usuario",
+      },
     },
     id_estado: {
       type: DataTypes.INTEGER,

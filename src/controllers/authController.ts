@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import Usuario from "../models/User";
 import {
+  getRecaptchaMinScore,
   isRecaptchaConfigured,
   verifyRecaptchaToken,
 } from "../services/recaptchaService";
@@ -53,6 +54,80 @@ const getErrorMessage = (error: unknown): string => {
   }
 
   return String(error);
+};
+
+const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s'-]{2,100}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\d{7,15}$/;
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCK_MINUTES = 10;
+
+const normalizeBaseUrl = (value?: string | null): string | null => {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/+$/, "");
+  }
+
+  return `https://${trimmed.replace(/^\/+/, "").replace(/\/+$/, "")}`;
+};
+
+const normalizeEmail = (value: unknown): string => {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+};
+
+const normalizePhone = (value: unknown): string => {
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const buildLockedLoginMessage = (lockedUntil: Date): string => {
+  const formattedTime = lockedUntil.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `Cuenta bloqueada temporalmente por multiples intentos fallidos. Intenta de nuevo despues de las ${formattedTime}.`;
+};
+
+const validateRegistrationPayload = (payload: {
+  nombre: unknown;
+  apellido: unknown;
+  email: unknown;
+  contrasena: unknown;
+  telefono: unknown;
+}): string | null => {
+  const nombre = typeof payload.nombre === "string" ? payload.nombre.trim() : "";
+  const apellido = typeof payload.apellido === "string" ? payload.apellido.trim() : "";
+  const email = normalizeEmail(payload.email);
+  const contrasena =
+    typeof payload.contrasena === "string" ? payload.contrasena.trim() : "";
+  const telefono = normalizePhone(payload.telefono);
+
+  if (!NAME_REGEX.test(nombre)) {
+    return "El nombre solo puede contener letras, espacios, apostrofes o guiones, y debe tener al menos 2 caracteres";
+  }
+
+  if (!NAME_REGEX.test(apellido)) {
+    return "El apellido solo puede contener letras, espacios, apostrofes o guiones, y debe tener al menos 2 caracteres";
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    return "Debes ingresar un correo electronico con formato valido";
+  }
+
+  if (!PHONE_REGEX.test(telefono)) {
+    return "El telefono debe contener solo numeros y tener entre 7 y 15 digitos";
+  }
+
+  if (!PASSWORD_REGEX.test(contrasena)) {
+    return "La contrasena debe tener minimo 8 caracteres e incluir letras y numeros";
+  }
+
+  return null;
 };
 
 const canUseGmailApi = (): boolean => {
@@ -280,7 +355,8 @@ const buildVerificationLink = (
   );
 
   const backendBaseUrl =
-    process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+    normalizeBaseUrl(process.env.BACKEND_URL) ||
+    `${req.protocol}://${req.get("host")}`;
 
   return `${backendBaseUrl}/api/auth/verify-account/${verificationToken}`;
 };
@@ -288,7 +364,8 @@ const buildVerificationLink = (
 const validateRecaptcha = async (
   req: Request,
   res: Response,
-  captchaToken: unknown
+  captchaToken: unknown,
+  expectedAction: "login" | "register"
 ): Promise<boolean> => {
   if (!isRecaptchaConfigured()) {
     return true;
@@ -301,11 +378,38 @@ const validateRecaptcha = async (
 
   try {
     const recaptchaResult = await verifyRecaptchaToken(captchaToken, req.ip);
+    const minScore = getRecaptchaMinScore();
 
     if (!recaptchaResult.success) {
       console.warn("reCAPTCHA invalido:", recaptchaResult.errorCodes);
       res.status(400).json({
         message: "La validacion reCAPTCHA fallo. Intentalo otra vez.",
+      });
+      return false;
+    }
+
+    if (recaptchaResult.action && recaptchaResult.action !== expectedAction) {
+      console.warn("reCAPTCHA action invalida:", {
+        expectedAction,
+        action: recaptchaResult.action,
+      });
+      res.status(400).json({
+        message: "La validacion reCAPTCHA no coincide con la accion esperada.",
+      });
+      return false;
+    }
+
+    if (
+      recaptchaResult.score !== null &&
+      recaptchaResult.score < minScore
+    ) {
+      console.warn("reCAPTCHA score bajo:", {
+        expectedAction,
+        score: recaptchaResult.score,
+        minScore,
+      });
+      res.status(400).json({
+        message: "La validacion reCAPTCHA fue considerada riesgosa. Intentalo otra vez.",
       });
       return false;
     }
@@ -327,25 +431,44 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     req.body;
 
   try {
-    const existe = await Usuario.findOne({ where: { email } });
+    const normalizedNombre = typeof nombre === "string" ? nombre.trim() : "";
+    const normalizedApellido = typeof apellido === "string" ? apellido.trim() : "";
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedTelefono = normalizePhone(telefono);
+    const normalizedPassword =
+      typeof contrasena === "string" ? contrasena.trim() : "";
+
+    const validationError = validateRegistrationPayload({
+      nombre: normalizedNombre,
+      apellido: normalizedApellido,
+      email: normalizedEmail,
+      contrasena: normalizedPassword,
+      telefono: normalizedTelefono,
+    });
+    if (validationError) {
+      res.status(400).json({ message: validationError });
+      return;
+    }
+
+    const existe = await Usuario.findOne({ where: { email: normalizedEmail } });
     if (existe) {
       res.status(409).json({ message: "El correo ya esta registrado" });
       return;
     }
 
-    const recaptchaOk = await validateRecaptcha(req, res, captchaToken);
+    const recaptchaOk = await validateRecaptcha(req, res, captchaToken, "register");
     if (!recaptchaOk) {
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(contrasena, 10);
+    const hashedPassword = await bcrypt.hash(normalizedPassword, 10);
 
     const user = await Usuario.create({
-      nombre,
-      apellido,
-      email,
+      nombre: normalizedNombre,
+      apellido: normalizedApellido,
+      email: normalizedEmail,
       contrasena: hashedPassword,
-      telefono,
+      telefono: normalizedTelefono,
       id_rol: id_rol || 2,
       estado: true,
       email_verificado: false,
@@ -393,21 +516,65 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, contrasena, captchaToken } = req.body;
 
   try {
-    const recaptchaOk = await validateRecaptcha(req, res, captchaToken);
+    const recaptchaOk = await validateRecaptcha(req, res, captchaToken, "login");
     if (!recaptchaOk) {
       return;
     }
 
-    const user = await Usuario.findOne({ where: { email } });
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPassword =
+      typeof contrasena === "string" ? contrasena.trim() : "";
+
+    const user = await Usuario.findOne({ where: { email: normalizedEmail } });
     if (!user) {
       res.status(404).json({ message: "Usuario no encontrado" });
       return;
     }
 
-    const valido = await bcrypt.compare(contrasena, user.contrasena);
-    if (!valido) {
-      res.status(401).json({ message: "Contrasena incorrecta" });
+    const now = new Date();
+    if (user.bloqueo_hasta && user.bloqueo_hasta > now) {
+      res.status(423).json({ message: buildLockedLoginMessage(user.bloqueo_hasta) });
       return;
+    }
+
+    if (user.bloqueo_hasta && user.bloqueo_hasta <= now) {
+      await user.update({
+        intentos_fallidos: 0,
+        bloqueo_hasta: null,
+      });
+    }
+
+    const valido = await bcrypt.compare(normalizedPassword, user.contrasena);
+    if (!valido) {
+      const nextFailedAttempts = (user.intentos_fallidos || 0) + 1;
+
+      if (nextFailedAttempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockedUntil = new Date(Date.now() + LOGIN_LOCK_MINUTES * 60 * 1000);
+        await user.update({
+          intentos_fallidos: 0,
+          bloqueo_hasta: lockedUntil,
+        });
+        res.status(423).json({ message: buildLockedLoginMessage(lockedUntil) });
+        return;
+      }
+
+      await user.update({
+        intentos_fallidos: nextFailedAttempts,
+        bloqueo_hasta: null,
+      });
+
+      const remainingAttempts = MAX_LOGIN_ATTEMPTS - nextFailedAttempts;
+      res.status(401).json({
+        message: `Contrasena incorrecta. Te quedan ${remainingAttempts} intentos antes del bloqueo temporal.`,
+      });
+      return;
+    }
+
+    if (user.intentos_fallidos !== 0 || user.bloqueo_hasta) {
+      await user.update({
+        intentos_fallidos: 0,
+        bloqueo_hasta: null,
+      });
     }
 
     if (!user.estado) {
@@ -479,7 +646,7 @@ export const verifyAccount = async (
       await user.update({ email_verificado: true, estado: true });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL;
+    const frontendUrl = normalizeBaseUrl(process.env.FRONTEND_URL);
     if (frontendUrl) {
       res.redirect(`${frontendUrl}/login?verified=1`);
       return;
@@ -517,7 +684,15 @@ export const forgotPassword = async (
       { expiresIn: "15m" }
     );
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    const frontendUrl = normalizeBaseUrl(process.env.FRONTEND_URL);
+    if (!frontendUrl) {
+      res.status(500).json({
+        message: "Falta FRONTEND_URL para construir el enlace de recuperacion",
+      });
+      return;
+    }
+
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
     console.log("Link de recuperacion:", resetLink);
 
     console.log(

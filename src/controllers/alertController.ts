@@ -5,6 +5,7 @@ import Alerta from "../models/Alert";
 import AlertReaction from "../models/AlertReaction";
 import Barrio from "../models/Barrio";
 import Comuna from "../models/Comuna";
+import Comment from "../models/Comment";
 import Evidence from "../models/Evidence";
 import Rol from "../models/Role";
 import Usuario from "../models/User";
@@ -41,6 +42,11 @@ type EvidenceRow = AlertEvidencePayload & {
 };
 
 type ReactionAggregateRow = {
+  id_alerta: number;
+  total: string;
+};
+
+type CommentAggregateRow = {
   id_alerta: number;
   total: string;
 };
@@ -208,7 +214,11 @@ const buildAlertPayloads = async (alertas: Alerta[]) => {
   }
 
   const userIds = Array.from(
-    new Set(alertas.map((alerta) => alerta.id_usuario).filter((id) => Number.isInteger(id) && id > 0))
+    new Set(
+      alertas
+        .map((alerta) => alerta.id_usuario)
+        .filter((id): id is number => id !== null && Number.isInteger(id) && id > 0)
+    )
   );
 
   const comunaIds = Array.from(
@@ -229,7 +239,7 @@ const buildAlertPayloads = async (alertas: Alerta[]) => {
 
   const alertIds = alertas.map((alerta) => alerta.id_alerta);
 
-  const [usuarios, comunas, barrios, evidencias] = await Promise.all([
+  const [usuarios, comunas, barrios, evidencias, commentRowsRaw] = await Promise.all([
     userIds.length > 0
       ? Usuario.findAll({
           where: { id_usuario: userIds },
@@ -257,6 +267,12 @@ const buildAlertPayloads = async (alertas: Alerta[]) => {
         ["id_alerta", "ASC"],
         ["created_at", "ASC"],
       ],
+      raw: true,
+    }),
+    Comment.findAll({
+      attributes: ["id_alerta", [fn("COUNT", col("id_comentario")), "total"]],
+      where: { id_alerta: alertIds },
+      group: ["id_alerta"],
       raw: true,
     }),
   ]);
@@ -291,10 +307,22 @@ const buildAlertPayloads = async (alertas: Alerta[]) => {
     evidenceByAlert.set(evidence.id_alerta, current);
   }
 
+  const commentRows = commentRowsRaw as unknown as CommentAggregateRow[];
+  const commentCountByAlertId = new Map<number, number>();
+  for (const row of commentRows) {
+    commentCountByAlertId.set(row.id_alerta, Number(row.total) || 0);
+  }
+
   return alertas.map((alerta) => {
     const plain = alerta.toJSON();
-    const idUsuario = Number(plain.id_usuario);
-    const nombreUsuario = userNameById.get(idUsuario) || `Usuario #${idUsuario}`;
+    const idUsuario =
+      plain.id_usuario === null || plain.id_usuario === undefined
+        ? null
+        : Number(plain.id_usuario);
+    const nombreUsuario =
+      idUsuario && userNameById.has(idUsuario)
+        ? userNameById.get(idUsuario)
+        : "Cuenta eliminada";
     const nombreComuna = plain.id_comuna
       ? comunaNombreById.get(plain.id_comuna) ?? `Comuna ${plain.id_comuna}`
       : undefined;
@@ -312,6 +340,7 @@ const buildAlertPayloads = async (alertas: Alerta[]) => {
       evidencia_url: plain.evidencia_url || primaryEvidence?.url_evidencia,
       evidencia_tipo: plain.evidencia_tipo || primaryEvidence?.tipo_evidencia || undefined,
       evidencias: alertEvidence,
+      total_comentarios: commentCountByAlertId.get(plain.id_alerta) ?? 0,
     };
   });
 };
