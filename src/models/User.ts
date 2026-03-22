@@ -11,12 +11,17 @@ interface UsuarioAttributes {
   telefono?: string | null;
   estado: boolean;
   email_verificado: boolean;
+  intentos_fallidos: number;
+  bloqueo_hasta?: Date | null;
   created_at?: Date;
   updated_at?: Date;
   deleted_at?: Date | null;
 }
 
-type UsuarioCreationAttributes = Optional<UsuarioAttributes, "id_usuario">;
+type UsuarioCreationAttributes = Optional<
+  UsuarioAttributes,
+  "id_usuario" | "intentos_fallidos" | "bloqueo_hasta"
+>;
 
 class Usuario
   extends Model<UsuarioAttributes, UsuarioCreationAttributes>
@@ -31,6 +36,8 @@ class Usuario
   public telefono?: string | null;
   public estado!: boolean;
   public email_verificado!: boolean;
+  public intentos_fallidos!: number;
+  public bloqueo_hasta?: Date | null;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
   public readonly deleted_at!: Date | null;
@@ -80,6 +87,15 @@ Usuario.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    intentos_fallidos: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    bloqueo_hasta: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
   },
   {

@@ -1,10 +1,16 @@
 interface RecaptchaVerifyApiResponse {
   success: boolean;
+  score?: number;
+  action?: string;
+  hostname?: string;
   "error-codes"?: string[];
 }
 
 export interface RecaptchaVerificationResult {
   success: boolean;
+  score: number | null;
+  action: string | null;
+  hostname: string | null;
   errorCodes: string[];
 }
 
@@ -13,6 +19,14 @@ const RECAPTCHA_VERIFY_URL =
 
 const getRecaptchaSecretKey = (): string =>
   process.env.RECAPTCHA_SECRET_KEY?.trim() || "";
+
+export const getRecaptchaMinScore = (): number => {
+  const rawValue = Number(process.env.RECAPTCHA_MIN_SCORE);
+  if (Number.isFinite(rawValue) && rawValue >= 0 && rawValue <= 1) {
+    return rawValue;
+  }
+  return 0.5;
+};
 
 export const isRecaptchaConfigured = (): boolean =>
   getRecaptchaSecretKey().length > 0;
@@ -24,7 +38,13 @@ export const verifyRecaptchaToken = async (
   const secretKey = getRecaptchaSecretKey();
 
   if (!secretKey) {
-    return { success: true, errorCodes: [] };
+    return {
+      success: true,
+      score: null,
+      action: null,
+      hostname: null,
+      errorCodes: [],
+    };
   }
 
   const params = new URLSearchParams({
@@ -54,6 +74,9 @@ export const verifyRecaptchaToken = async (
 
   return {
     success: Boolean(data.success),
+    score: typeof data.score === "number" ? data.score : null,
+    action: typeof data.action === "string" ? data.action : null,
+    hostname: typeof data.hostname === "string" ? data.hostname : null,
     errorCodes: data["error-codes"] ?? [],
   };
 };
