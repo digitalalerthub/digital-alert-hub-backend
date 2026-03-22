@@ -374,6 +374,12 @@ export const createAlerta = async (req: Request, res: Response) => {
       });
     }
 
+    if (typeof ubicacion !== "string" || ubicacion.trim().length === 0) {
+      return res.status(400).json({
+        message: "La direccion es obligatoria",
+      });
+    }
+
     const parsedComuna = parseOptionalPositiveInt(id_comuna);
     const parsedBarrio = parseOptionalPositiveInt(id_barrio);
 
@@ -391,6 +397,10 @@ export const createAlerta = async (req: Request, res: Response) => {
     }
 
     const evidenceFiles = getUploadedEvidenceFiles(req);
+    if (evidenceFiles.length === 0) {
+      return res.status(400).json({ message: "Debes adjuntar al menos una evidencia" });
+    }
+
     const evidenceValidationError = validateEvidenceImages(evidenceFiles);
     if (evidenceValidationError) {
       return res.status(400).json({ message: evidenceValidationError });
@@ -403,7 +413,7 @@ export const createAlerta = async (req: Request, res: Response) => {
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
       categoria: categoria.trim(),
-      ubicacion: typeof ubicacion === "string" ? ubicacion.trim() : undefined,
+      ubicacion: ubicacion.trim(),
       prioridad: typeof prioridad === "string" ? prioridad.trim() : undefined,
       id_comuna: parsedComuna,
       id_barrio: parsedBarrio,
