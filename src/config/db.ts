@@ -185,6 +185,52 @@ const ensureAlertCatalogs = async (): Promise<void> => {
   `);
 };
 
+const ensureAlertAuthorDeletionSchema = async (): Promise<void> => {
+  await sequelize.query(`
+    DO $$
+    DECLARE
+      constraint_name text;
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'alertas'
+      ) THEN
+        ALTER TABLE alertas
+        ALTER COLUMN id_usuario DROP NOT NULL;
+
+        FOR constraint_name IN
+          SELECT tc.constraint_name
+          FROM information_schema.table_constraints tc
+          JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+           AND tc.table_schema = kcu.table_schema
+          JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+           AND tc.table_schema = ccu.table_schema
+          WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = 'public'
+            AND tc.table_name = 'alertas'
+            AND kcu.column_name = 'id_usuario'
+            AND ccu.table_name = 'usuarios'
+            AND ccu.column_name = 'id_usuario'
+        LOOP
+          EXECUTE format('ALTER TABLE alertas DROP CONSTRAINT IF EXISTS %I', constraint_name);
+        END LOOP;
+
+        ALTER TABLE alertas
+        ADD CONSTRAINT alertas_id_usuario_fkey
+        FOREIGN KEY (id_usuario)
+        REFERENCES usuarios(id_usuario)
+        ON DELETE SET NULL;
+      END IF;
+    EXCEPTION
+      WHEN duplicate_object THEN
+        NULL;
+    END $$;
+  `);
+};
+
 const ensureAlertReactionSchema = async (): Promise<void> => {
   await sequelize.query(`
     CREATE TABLE IF NOT EXISTS alertas_reacciones (
@@ -236,9 +282,25 @@ const ensureUserAuthSchema = async (): Promise<void> => {
   `);
 
   await sequelize.query(`
+    ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS intentos_fallidos INTEGER;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS bloqueo_hasta TIMESTAMP WITH TIME ZONE NULL;
+  `);
+
+  await sequelize.query(`
     UPDATE usuarios
     SET email_verificado = COALESCE(email_verificado, estado, false)
     WHERE email_verificado IS NULL;
+  `);
+
+  await sequelize.query(`
+    UPDATE usuarios
+    SET intentos_fallidos = COALESCE(intentos_fallidos, 0)
+    WHERE intentos_fallidos IS NULL;
   `);
 
   await sequelize.query(`
@@ -248,7 +310,17 @@ const ensureUserAuthSchema = async (): Promise<void> => {
 
   await sequelize.query(`
     ALTER TABLE usuarios
+    ALTER COLUMN intentos_fallidos SET DEFAULT 0;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
     ALTER COLUMN email_verificado SET NOT NULL;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN intentos_fallidos SET NOT NULL;
   `);
 };
 
@@ -262,6 +334,9 @@ export const connectDB = async (): Promise<void> => {
 
     await ensureAlertCatalogs();
     console.log("Catalogos de estados y reacciones validados.");
+
+    await ensureAlertAuthorDeletionSchema();
+    console.log("Esquema de autor anonimo para alertas validado.");
 
     await ensureAlertReactionSchema();
     console.log("Esquema de reacciones por alerta validado.");
