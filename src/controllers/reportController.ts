@@ -67,10 +67,7 @@ const parseYearQuery = (value: unknown): YearRange | undefined | null => {
   };
 };
 
-const parseMonthQuery = (value: unknown): MonthRange | undefined | null => {
-  if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value !== "string") return null;
-
+const parseMonthValue = (value: string): MonthRange | null => {
   const trimmed = value.trim();
   if (!/^\d{4}-\d{2}$/.test(trimmed)) return null;
 
@@ -82,14 +79,32 @@ const parseMonthQuery = (value: unknown): MonthRange | undefined | null => {
     return null;
   }
 
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-
   return {
     value: trimmed,
-    start,
-    end,
+    start: new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0)),
+    end: new Date(Date.UTC(year, month, 1, 0, 0, 0, 0)),
   };
+};
+
+const parseMonthsQuery = (value: unknown): MonthRange[] | undefined | null => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") return null;
+
+  const rawItems = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (rawItems.length === 0) return undefined;
+
+  const uniqueItems = Array.from(new Set(rawItems));
+  const parsedItems = uniqueItems.map(parseMonthValue);
+
+  if (parsedItems.some((item) => item === null)) {
+    return null;
+  }
+
+  return (parsedItems as MonthRange[]).sort((a, b) => a.value.localeCompare(b.value));
 };
 
 const parseCategoryQuery = (value: unknown): string | undefined | null => {
@@ -113,25 +128,18 @@ const getMonthLabel = (monthKey: string): string => {
   const month = Number(monthText);
   const date = new Date(Date.UTC(year, month - 1, 1));
 
-  return new Intl.DateTimeFormat("es-CO", {
-    month: "short",
-    year: "numeric",
+  const label = new Intl.DateTimeFormat("es-CO", {
+    month: "long",
     timeZone: "UTC",
   }).format(date);
+
+  return label.charAt(0).toUpperCase() + label.slice(1);
 };
 
-const buildRecentMonthKeys = (selectedMonth?: string): string[] => {
-  const anchor = selectedMonth
-    ? new Date(`${selectedMonth}-01T00:00:00.000Z`)
-    : new Date();
-  const months: string[] = [];
-
-  for (let offset = 5; offset >= 0; offset -= 1) {
-    const current = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - offset, 1));
-    months.push(getMonthKey(current));
-  }
-
-  return months;
+const buildYearMonthKeys = (yearValue: number): string[] => {
+  return Array.from({ length: 12 }, (_, index) =>
+    `${yearValue}-${String(index + 1).padStart(2, "0")}`
+  );
 };
 
 export const getAlertReports = async (req: Request, res: Response) => {
@@ -145,7 +153,7 @@ export const getAlertReports = async (req: Request, res: Response) => {
     const idComuna = parsePositiveIntQuery(req.query.id_comuna);
     const idBarrio = parsePositiveIntQuery(req.query.id_barrio);
     const year = parseYearQuery(req.query.year);
-    const month = parseMonthQuery(req.query.month);
+    const months = parseMonthsQuery(req.query.months);
     const category = parseCategoryQuery(req.query.category);
 
     if (idEstado === null || idComuna === null || idBarrio === null || year === null) {
@@ -154,9 +162,9 @@ export const getAlertReports = async (req: Request, res: Response) => {
       });
     }
 
-    if (month === null) {
+    if (months === null) {
       return res.status(400).json({
-        message: "El filtro month debe usar el formato YYYY-MM",
+        message: "El filtro months debe usar el formato YYYY-MM separado por comas",
       });
     }
 
@@ -167,6 +175,7 @@ export const getAlertReports = async (req: Request, res: Response) => {
     }
 
     const where: WhereOptions = {};
+    const whereWithOperators = where as WhereOptions & Record<symbol, unknown>;
 
     if (idEstado !== undefined) {
       where.id_estado = idEstado;
@@ -184,30 +193,36 @@ export const getAlertReports = async (req: Request, res: Response) => {
       where.categoria = category;
     }
 
-    let createdAtStart: Date | undefined;
-    let createdAtEnd: Date | undefined;
+    const andConditions: WhereOptions[] = [];
 
     if (year) {
-      createdAtStart = year.start;
-      createdAtEnd = year.end;
+      andConditions.push({
+        created_at: {
+          [Op.gte]: year.start,
+          [Op.lt]: year.end,
+        },
+      });
     }
 
-    if (month) {
-      createdAtStart =
-        createdAtStart && createdAtStart > month.start ? createdAtStart : month.start;
-      createdAtEnd = createdAtEnd && createdAtEnd < month.end ? createdAtEnd : month.end;
+    if (months?.length) {
+      if (year && months.some((item) => !item.value.startsWith(`${year.value}-`))) {
+        return res.status(400).json({
+          message: "Los meses seleccionados deben pertenecer al año filtrado",
+        });
+      }
+
+      andConditions.push({
+        [Op.or]: months.map((item) => ({
+          created_at: {
+            [Op.gte]: item.start,
+            [Op.lt]: item.end,
+          },
+        })),
+      });
     }
 
-    if (createdAtStart || createdAtEnd) {
-      where.created_at = {};
-
-      if (createdAtStart) {
-        (where.created_at as Record<symbol, Date>)[Op.gte] = createdAtStart;
-      }
-
-      if (createdAtEnd) {
-        (where.created_at as Record<symbol, Date>)[Op.lt] = createdAtEnd;
-      }
+    if (andConditions.length > 0) {
+      whereWithOperators[Op.and] = andConditions;
     }
 
     const [alertas, catalogSource] = (await Promise.all([
@@ -260,7 +275,9 @@ export const getAlertReports = async (req: Request, res: Response) => {
     const countsByCategoria = new Map<string, number>();
     const countsByEstado = new Map<number, number>();
     const barrioNameById = new Map<number, string>();
-    const monthKeys = buildRecentMonthKeys(month?.value);
+    const monthKeys = months?.length
+      ? months.map((item) => item.value)
+      : buildYearMonthKeys(year?.value ?? new Date().getUTCFullYear());
     const monthlyTrend = new Map<string, { total: number; resueltas: number }>();
 
     for (const barrio of barrios as Array<{ id_barrio: number; nombre: string }>) {
@@ -316,7 +333,7 @@ export const getAlertReports = async (req: Request, res: Response) => {
         id_comuna: idComuna ?? null,
         id_barrio: idBarrio ?? null,
         year: year?.value ?? null,
-        month: month?.value ?? null,
+        months: months?.map((item) => item.value) ?? [],
         category: category ?? null,
       },
       kpis: {
