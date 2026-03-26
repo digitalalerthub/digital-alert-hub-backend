@@ -1,90 +1,72 @@
 import { NextFunction, Request, Response } from "express";
-import jwt, { JwtPayload } from "jsonwebtoken";
 import Usuario from "../models/User";
-
-interface CustomRequest extends Request {
-  userId?: number;
-  rol?: string;
-}
-
-const extractBearerToken = (authHeader?: string): string | null => {
-  if (!authHeader) return null;
-
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
-
-  return token;
-};
-
-const attachUserFromToken = (req: Request, token: string): boolean => {
-  const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
-
-  const userId = decoded.id || decoded.id_usuario;
-  const userRol = decoded.rol || decoded.id_rol;
-
-  if (!userId) {
-    return false;
-  }
-
-  (req as any).user = {
-    id: userId,
-    rol: userRol,
-  };
-
-  return true;
-};
+import { AppError } from "../utils/appError";
+import {
+  attachRequestUserFromToken,
+  extractBearerToken,
+} from "../services/auth/authSessionService";
 
 export const verifyToken = async (
-  req: CustomRequest,
-  res: Response,
+  req: Request,
+  _res: Response,
   next: NextFunction
 ) => {
   const token = extractBearerToken(req.headers.authorization);
 
   if (!token) {
-    return res.status(403).json({ message: "Token requerido" });
+    next(new AppError(403, "Token requerido"));
+    return;
   }
 
   try {
-    const userAttached = attachUserFromToken(req, token);
+    const userAttached = attachRequestUserFromToken(req, token);
     if (!userAttached) {
-      return res.status(401).json({ message: "Token invalido - falta ID de usuario" });
+      next(new AppError(401, "Token invalido - falta ID de usuario"));
+      return;
     }
 
-    const userId = (req as any).user?.id;
-    const user = await Usuario.findByPk(userId, {
+    const user = await Usuario.findByPk(req.user?.id, {
       attributes: ["id_usuario", "estado"],
     });
 
     if (!user) {
-      return res.status(401).json({ message: "Usuario no encontrado" });
+      next(new AppError(401, "Usuario no encontrado"));
+      return;
     }
 
     if (!user.estado) {
-      return res.status(403).json({
-        message:
-          "Tu cuenta esta inactiva. Contacta al administrador para reactivarla.",
-      });
+      next(
+        new AppError(
+          403,
+          "Tu cuenta esta inactiva. Contacta al administrador para reactivarla."
+        )
+      );
+      return;
     }
 
-    return next();
-  } catch (_error) {
-    return res.status(401).json({ message: "Token invalido o expirado" });
+    next();
+  } catch {
+    next(new AppError(401, "Token invalido o expirado"));
   }
 };
 
-export const optionalVerifyToken = (req: Request, _res: Response, next: NextFunction) => {
+export const optionalVerifyToken = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) => {
   const token = extractBearerToken(req.headers.authorization);
 
   if (!token) {
-    return next();
+    next();
+    return;
   }
 
   try {
-    attachUserFromToken(req, token);
-  } catch (_error) {
+    attachRequestUserFromToken(req, token);
+  } catch {
     // Las vistas publicas no deben fallar por un token vencido o malformado.
   }
 
-  return next();
+  next();
 };
