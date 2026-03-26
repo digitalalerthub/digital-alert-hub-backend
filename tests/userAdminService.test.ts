@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppError } from '../src/utils/appError';
 
 const mockFindOne = vi.fn();
 const mockCreate = vi.fn();
@@ -63,7 +62,7 @@ describe('createUserFromAdmin', () => {
                 telefono: '3001234567',
                 id_rol: 1,
             }),
-        ).rejects.toMatchObject<AppError>({
+        ).rejects.toMatchObject({
             statusCode: 400,
             message: expect.stringContaining('correo electronico'),
         });
