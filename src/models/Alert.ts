@@ -5,13 +5,14 @@ interface AlertaAttributes {
   id_alerta: number;
   id_usuario: number | null;
   id_estado: number;
+  id_categoria: number;
   id_comuna?: number;
   id_barrio?: number;
   titulo: string;
   descripcion: string;
   ubicacion?: string;
   prioridad?: string;
-  categoria: string;
+  categoria?: string;
   evidencia_url?: string;
   evidencia_tipo?: string;
   created_at?: Date;
@@ -23,6 +24,7 @@ type AlertaCreationAttributes = Optional<
   AlertaAttributes,
   | "id_alerta"
   | "prioridad"
+  | "categoria"
   | "id_comuna"
   | "id_barrio"
   | "created_at"
@@ -40,13 +42,14 @@ class Alerta
   public id_alerta!: number;
   public id_usuario!: number | null;
   public id_estado!: number;
+  public id_categoria!: number;
   public id_comuna?: number;
   public id_barrio?: number;
   public titulo!: string;
   public descripcion!: string;
   public ubicacion?: string;
   public prioridad?: string;
-  public categoria!: string;
+  public categoria?: string;
   public evidencia_url?: string;
   public evidencia_tipo?: string;
   public readonly created_at!: Date;
@@ -78,6 +81,15 @@ Alerta.init(
       references: {
         model: "estados",
         key: "id_estado",
+      },
+    },
+    id_categoria: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: "id_categoria",
+      references: {
+        model: "categorias",
+        key: "id_categoria",
       },
     },
     id_comuna: {
@@ -116,7 +128,7 @@ Alerta.init(
     },
     categoria: {
       type: DataTypes.STRING(100),
-      allowNull: false,
+      allowNull: true,
     },
     evidencia_url: {
       type: DataTypes.STRING(500),

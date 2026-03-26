@@ -106,9 +106,6 @@ DB_SYNC=false
 # Logs SQL de Sequelize (recomendado false)
 DB_LOG_SQL=false
 
-# Sincronizar catalogo comunas/barrios al arrancar el backend (recomendado false)
-SYNC_LOCATION_CATALOG_ON_BOOT=false
-
 # JWT para autenticación
 JWT_SECRET=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz56abcdefghij
 
@@ -128,9 +125,6 @@ GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth/google/callback
 CLOUDINARY_CLOUD_NAME=my_cloud
 CLOUDINARY_API_KEY=123456789012345
 CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz12345
-
-# Geoapify (https://www.geoapify.com)
-GEOAPIFY_API_KEY=abcdefghijklmnopqrstuvwxyz12345678901234
 
 # Frontend
 FRONTEND_URL=http://localhost:5173
@@ -187,13 +181,6 @@ El servidor se ejecutara por defecto en:
 http://localhost:4000
 ```
 
-Para sincronizar comunas/barrios manualmente (sin hacerlo en cada arranque):
-```bash
-npm run sync:locations
-```
-
----
-
 ##  Correos - Gmail API y SMTP
 
 El backend intenta enviar correos con **Gmail API** y, si ese flujo falla o no esta configurado, usa **Nodemailer SMTP** como fallback. Esto permite:
@@ -225,7 +212,6 @@ const transporter = nodemailer.createTransport({
 |----------|--------------|
 | `npm run dev` | Ejecuta el servidor en modo desarrollo (con Nodemon) |
 | `npm run build` | Compila el codigo TypeScript a JavaScript |
-| `npm run sync:locations` | Sincroniza manualmente el catalogo de comunas y barrios |
 | `npm start` | Ejecuta el servidor en produccion |
 
 ---
@@ -234,6 +220,7 @@ const transporter = nodemailer.createTransport({
 
 El proyecto utiliza **PostgreSQL** y **Sequelize** para la gestion ORM.
 Las migraciones y modelos se definen dentro de `/src/models` y pueden sincronizarse automaticamente al iniciar el servidor.
+El catalogo de **comunas** y **barrios** se consume directamente desde las tablas `comunas` y `barrios` en la base de datos; no se mantiene un catalogo hardcodeado en el codigo.
 
 Para soporte de evidencia multimedia en alertas (URL y tipo), asegure que la tabla `alertas` tenga estas columnas en Neon/produccion:
 

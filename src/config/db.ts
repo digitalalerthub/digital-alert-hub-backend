@@ -131,6 +131,157 @@ const ensureAlertLocationSchema = async (): Promise<void> => {
   `);
 };
 
+const ensureAlertCategorySchema = async (): Promise<void> => {
+  await sequelize.query(`
+    CREATE TABLE IF NOT EXISTS categorias (
+      id_categoria SERIAL PRIMARY KEY,
+      nombre_categoria VARCHAR(150) NOT NULL,
+      created_by_id INTEGER NULL,
+      deleted_by_id INTEGER NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      deleted_at TIMESTAMP WITHOUT TIME ZONE NULL
+    );
+  `);
+
+  await sequelize.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS categorias_nombre_categoria_key
+    ON categorias (nombre_categoria);
+  `);
+
+  await sequelize.query(`
+    INSERT INTO categorias (nombre_categoria, created_at, updated_at)
+    VALUES
+      ('Infraestructura Urbana', NOW(), NOW()),
+      ('Riesgos y Emergencias', NOW(), NOW()),
+      ('Seguridad y Convivencia', NOW(), NOW()),
+      ('Casos Sociales y Vulnerabilidad', NOW(), NOW()),
+      ('Salud y Ambiente', NOW(), NOW()),
+      ('Alertas Comunitarias', NOW(), NOW())
+    ON CONFLICT (nombre_categoria)
+    DO UPDATE SET updated_at = EXCLUDED.updated_at;
+  `);
+
+  await sequelize.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'alertas'
+      ) THEN
+        ALTER TABLE alertas
+        ADD COLUMN IF NOT EXISTS id_categoria INTEGER;
+      END IF;
+    END $$;
+  `);
+
+  await sequelize.query(`
+    CREATE INDEX IF NOT EXISTS idx_alertas_id_categoria
+    ON alertas (id_categoria);
+  `);
+
+  await sequelize.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'alertas'
+      ) THEN
+        UPDATE alertas
+        SET id_categoria = categorias.id_categoria
+        FROM categorias
+        WHERE alertas.id_categoria IS NULL
+          AND categorias.nombre_categoria = CASE
+            WHEN LOWER(BTRIM(alertas.categoria)) IN (
+              'agua',
+              'energia',
+              'gas',
+              'movilidad',
+              'espacio publico',
+              'infraestructura',
+              'alcantarillado',
+              'alumbrado publico',
+              'malla vial',
+              'servicios publicos'
+            ) THEN 'Infraestructura Urbana'
+            WHEN LOWER(BTRIM(alertas.categoria)) IN ('riesgo', 'riesgos', 'emergencia', 'emergencias')
+              THEN 'Riesgos y Emergencias'
+            WHEN LOWER(BTRIM(alertas.categoria)) IN ('seguridad', 'convivencia')
+              THEN 'Seguridad y Convivencia'
+            WHEN LOWER(BTRIM(alertas.categoria)) IN ('aseo', 'residuos', 'salud', 'ambiente')
+              THEN 'Salud y Ambiente'
+            WHEN LOWER(BTRIM(alertas.categoria)) IN (
+              'casos sociales',
+              'vulnerabilidad',
+              'casos sociales y vulnerabilidad'
+            ) THEN 'Casos Sociales y Vulnerabilidad'
+            ELSE 'Alertas Comunitarias'
+          END;
+      END IF;
+    END $$;
+  `);
+
+  await sequelize.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'alertas'
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'alertas'
+          AND column_name = 'categoria'
+      ) THEN
+        UPDATE alertas
+        SET categoria = categorias.nombre_categoria
+        FROM categorias
+        WHERE alertas.id_categoria = categorias.id_categoria
+          AND alertas.categoria IS DISTINCT FROM categorias.nombre_categoria;
+      END IF;
+    END $$;
+  `);
+
+  await sequelize.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'alertas'
+      ) THEN
+        IF EXISTS (
+          SELECT 1
+          FROM alertas
+          WHERE id_categoria IS NULL
+        ) THEN
+          RAISE EXCEPTION 'No fue posible migrar todas las alertas a la tabla categorias';
+        END IF;
+
+        ALTER TABLE alertas
+        ALTER COLUMN id_categoria SET NOT NULL;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'alertas_id_categoria_fkey'
+        ) THEN
+          ALTER TABLE alertas
+          ADD CONSTRAINT alertas_id_categoria_fkey
+          FOREIGN KEY (id_categoria)
+          REFERENCES categorias(id_categoria);
+        END IF;
+      END IF;
+    END $$;
+  `);
+};
+
+/*
 const ensureAlertCatalogs = async (): Promise<void> => {
   await sequelize.query(`
     DO $$
@@ -142,7 +293,7 @@ const ensureAlertCatalogs = async (): Promise<void> => {
       ) THEN
         INSERT INTO estados (id_estado, nombre_estado, created_at, updated_at)
         VALUES
-          (1, 'Nueva', '2025-09-25 16:05:39.569573', NOW()),
+          (1, 'Pendiente', '2025-09-25 16:05:39.569573', NOW()),
           (2, 'En Progreso', '2025-09-25 16:05:39.569573', NOW()),
           (3, 'Resuelta', '2025-09-25 16:05:39.569573', NOW()),
           (4, 'Falsa Alerta', '2025-09-25 16:05:39.569573', NOW())
@@ -184,6 +335,7 @@ const ensureAlertCatalogs = async (): Promise<void> => {
     END $$;
   `);
 };
+*/
 
 const ensureAlertAuthorDeletionSchema = async (): Promise<void> => {
   await sequelize.query(`
@@ -275,6 +427,57 @@ const ensureAlertCommentSchema = async (): Promise<void> => {
   `);
 };
 
+const ensureAlertStateHistorySchema = async (): Promise<void> => {
+  await sequelize.query(`
+    CREATE TABLE IF NOT EXISTS historial_estado (
+      id_historial SERIAL PRIMARY KEY,
+      id_alerta INTEGER NOT NULL REFERENCES alertas(id_alerta),
+      id_estado INTEGER NOT NULL REFERENCES estados(id_estado),
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE NULL,
+      deleted_at TIMESTAMP WITHOUT TIME ZONE NULL,
+      created_by_id INTEGER NULL,
+      deleted_by_id INTEGER NULL
+    );
+  `);
+
+  await sequelize.query(`
+    CREATE INDEX IF NOT EXISTS idx_historial_estado_id_alerta_created_at
+    ON historial_estado (id_alerta, created_at);
+  `);
+};
+
+const validateRequiredCatalogTables = async (): Promise<void> => {
+  const requiredTables = ["estados", "reacciones", "roles", "categorias"] as const;
+
+  for (const tableName of requiredTables) {
+    const [tableRows] = (await sequelize.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = '${tableName}'
+      ) AS exists;
+    `)) as Array<Array<{ exists: boolean }>>;
+
+    if (!tableRows[0]?.exists) {
+      throw new Error(
+        `La tabla catalogo "${tableName}" no existe en la base de datos. Debes crearla y poblarla desde Neon.`
+      );
+    }
+
+    const [countRows] = (await sequelize.query(`
+      SELECT COUNT(*)::int AS total
+      FROM ${tableName};
+    `)) as Array<Array<{ total: number }>>;
+
+    if (!countRows[0] || Number(countRows[0].total) <= 0) {
+      throw new Error(
+        `La tabla catalogo "${tableName}" esta vacia. Debes poblarla desde la base de datos antes de iniciar la API.`
+      );
+    }
+  }
+};
+
 const ensureUserAuthSchema = async (): Promise<void> => {
   await sequelize.query(`
     ALTER TABLE usuarios
@@ -332,8 +535,11 @@ export const connectDB = async (): Promise<void> => {
     await ensureAlertLocationSchema();
     console.log("Esquema de comunas, barrios y alertas validado.");
 
-    await ensureAlertCatalogs();
-    console.log("Catalogos de estados y reacciones validados.");
+    await ensureAlertCategorySchema();
+    console.log("Esquema de categorias y relacion con alertas validado.");
+
+    await validateRequiredCatalogTables();
+    console.log("Catalogos de estados, reacciones, roles y categorias verificados desde la base.");
 
     await ensureAlertAuthorDeletionSchema();
     console.log("Esquema de autor anonimo para alertas validado.");
@@ -343,6 +549,9 @@ export const connectDB = async (): Promise<void> => {
 
     await ensureAlertCommentSchema();
     console.log("Esquema de comentarios por alerta validado.");
+
+    await ensureAlertStateHistorySchema();
+    console.log("Esquema de historial de estados validado.");
 
     await ensureUserAuthSchema();
     console.log("Estado de verificacion y activacion de usuarios validado.");
