@@ -5,19 +5,20 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-import authRoutes from "./routes/authRoutes";
-import alertRoutes from "./routes/alertRoutes";
-import reportRoutes from "./routes/reportRoutes";
-import statsRoutes from "./routes/statsRoutes";
-import profileRoutes from "./routes/profileRoutes";
-import userRoutes from "./routes/userRoutes";
-import roleRoutes from "./routes/roleRoutes";
-import geoRoutes from "./routes/geoRoutes";
-import locationRoutes from "./routes/locationRoutes";
-import reactionRoutes from "./routes/reactionRoutes";
+import authRoutes from "./routes/auth/authRoutes";
+import alertRoutes from "./routes/alerts/alertRoutes";
+import reportRoutes from "./routes/reports/reportRoutes";
+import statsRoutes from "./routes/reports/statsRoutes";
+import profileRoutes from "./routes/users/profileRoutes";
+import userRoutes from "./routes/users/userRoutes";
+import roleRoutes from "./routes/users/roleRoutes";
+import locationRoutes from "./routes/catalogs/locationRoutes";
+import reactionRoutes from "./routes/catalogs/reactionRoutes";
+import catalogRoutes from "./routes/catalogs/catalogRoutes";
+import { errorHandler } from "./middleware/errorHandler";
 
 
-import authGoogleRoutes from "./routes/authGoogle"; // <-- IMPORTANTE
+import authGoogleRoutes from "./routes/auth/authGoogle"; // <-- IMPORTANTE
 import "./config/googleStrategy"; // <-- INICIALIZA PASSPORT GOOGLE
 
 const app: Application = express();
@@ -44,19 +45,21 @@ app.use("/api/profile", profileRoutes);
 
 app.use("/api/users", userRoutes);
 app.use("/api/roles", roleRoutes);
-app.use("/api/geo", geoRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/reactions", reactionRoutes);
+app.use("/api/catalogs", catalogRoutes);
 
 
 // ENDPOINT RAÍZ
-app.get("/", (req: Request, res: Response) => {
+app.get("/", (_req: Request, res: Response) => {
   res.send("API DigitalAlertHub activa");
 });
 
 // HEALTH CHECK - Render necesita esto para verificar que el servidor está vivo
-app.get("/health", (req: Request, res: Response) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok" });
 });
+
+app.use(errorHandler);
 
 export default app;
