@@ -1,11 +1,11 @@
 import { DataTypes, Model, Optional } from "sequelize";
-import { sequelize } from "../config/db";
+import { sequelize } from "../../config/db";
 
-interface CommentAttributes {
-  id_comentario: number;
-  id_usuario: number;
+interface EvidenceAttributes {
+  id_evidencia: number;
   id_alerta: number;
-  texto_comentario: string;
+  tipo_evidencia?: string | null;
+  url_evidencia: string;
   created_by_id?: number | null;
   deleted_by_id?: number | null;
   created_at?: Date;
@@ -13,19 +13,19 @@ interface CommentAttributes {
   deleted_at?: Date | null;
 }
 
-type CommentCreationAttributes = Optional<
-  CommentAttributes,
-  "id_comentario" | "created_by_id" | "deleted_by_id" | "created_at" | "updated_at" | "deleted_at"
+type EvidenceCreationAttributes = Optional<
+  EvidenceAttributes,
+  "id_evidencia" | "tipo_evidencia" | "created_by_id" | "deleted_by_id" | "created_at" | "updated_at" | "deleted_at"
 >;
 
-class Comment
-  extends Model<CommentAttributes, CommentCreationAttributes>
-  implements CommentAttributes
+class Evidence
+  extends Model<EvidenceAttributes, EvidenceCreationAttributes>
+  implements EvidenceAttributes
 {
-  public id_comentario!: number;
-  public id_usuario!: number;
+  public id_evidencia!: number;
   public id_alerta!: number;
-  public texto_comentario!: string;
+  public tipo_evidencia?: string | null;
+  public url_evidencia!: string;
   public created_by_id?: number | null;
   public deleted_by_id?: number | null;
   public readonly created_at!: Date;
@@ -33,22 +33,13 @@ class Comment
   public readonly deleted_at!: Date | null;
 }
 
-Comment.init(
+Evidence.init(
   {
-    id_comentario: {
+    id_evidencia: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
-      field: "id_comentario",
-    },
-    id_usuario: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      field: "id_usuario",
-      references: {
-        model: "usuarios",
-        key: "id_usuario",
-      },
+      field: "id_evidencia",
     },
     id_alerta: {
       type: DataTypes.INTEGER,
@@ -59,10 +50,15 @@ Comment.init(
         key: "id_alerta",
       },
     },
-    texto_comentario: {
+    tipo_evidencia: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      field: "tipo_evidencia",
+    },
+    url_evidencia: {
       type: DataTypes.TEXT,
       allowNull: false,
-      field: "texto_comentario",
+      field: "url_evidencia",
     },
     created_by_id: {
       type: DataTypes.INTEGER,
@@ -77,7 +73,7 @@ Comment.init(
   },
   {
     sequelize,
-    tableName: "comentarios",
+    tableName: "evidencias",
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
@@ -91,4 +87,4 @@ Comment.init(
   }
 );
 
-export default Comment;
+export default Evidence;

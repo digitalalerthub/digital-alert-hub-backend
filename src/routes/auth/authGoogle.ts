@@ -3,7 +3,7 @@ import passport from 'passport';
 import '../../config/googleStrategy';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import Usuario from '../../models/User';
+import Usuario from '../../models/users/User';
 import { resolveFrontendBaseUrl } from '../../services/auth/authLinkService';
 import { getRoleNameForToken, resolveRoleIdByCanonicalName } from '../../utils/roleUtils';
 

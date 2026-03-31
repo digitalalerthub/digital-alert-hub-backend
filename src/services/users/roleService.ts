@@ -1,6 +1,6 @@
 import { ForeignKeyConstraintError } from "sequelize";
-import Role from "../../models/Role";
-import User from "../../models/User";
+import Role from "../../models/users/Role";
+import User from "../../models/users/User";
 import { AppError } from "../../utils/appError";
 
 type RoleUsage = {

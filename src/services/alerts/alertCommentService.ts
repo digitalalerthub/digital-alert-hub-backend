@@ -1,7 +1,7 @@
 import { Request } from "express";
-import Alert from "../../models/Alert";
-import Comment from "../../models/Comment";
-import User from "../../models/User";
+import Alert from "../../models/alerts/Alert";
+import Comment from "../../models/alerts/Comment";
+import User from "../../models/users/User";
 import { isAdminRoleName, resolveCanonicalRoleName } from "../../utils/roleUtils";
 import { AppError } from "../../utils/appError";
 import { parsePositiveInt } from "../../utils/number";

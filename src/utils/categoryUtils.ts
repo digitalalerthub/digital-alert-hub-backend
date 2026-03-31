@@ -1,4 +1,4 @@
-import Categoria from "../models/Categoria";
+import Categoria from "../models/catalogs/Categoria";
 import { parsePositiveInt } from "./number";
 
 export type CanonicalAlertCategoryName =

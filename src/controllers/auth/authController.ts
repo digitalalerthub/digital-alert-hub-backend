@@ -36,7 +36,7 @@ export const forgotPassword = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const result = await sendPasswordReset(req.body?.email);
+  const result = await sendPasswordReset(req, req.body?.email, req.body?.captchaToken);
   res.json(result);
 };
 
@@ -52,9 +52,9 @@ export const resetPassword = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const result = await resetUserPassword(
-    req.params.token,
-    req.body?.nuevaContrasena
-  );
+  const result = await resetUserPassword(req, req.params.token, {
+    nuevaContrasena: req.body?.nuevaContrasena,
+    captchaToken: req.body?.captchaToken,
+  });
   res.json(result);
 };

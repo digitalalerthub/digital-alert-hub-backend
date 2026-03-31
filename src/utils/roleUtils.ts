@@ -1,4 +1,4 @@
-import Rol from "../models/Role";
+import Rol from "../models/users/Role";
 import { parsePositiveInt } from "./number";
 
 export type CanonicalRoleName = "administrador" | "ciudadano" | "jac";

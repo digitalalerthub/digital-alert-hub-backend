@@ -1,6 +1,6 @@
 import { Request } from "express";
 import jwt from "jsonwebtoken";
-import Usuario from "../../models/User";
+import Usuario from "../../models/users/User";
 import { normalizeBaseUrl } from "../../utils/url";
 
 export type PasswordActionType = "password_reset" | "set_password";

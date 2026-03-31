@@ -1,7 +1,7 @@
 import { sequelize } from "../../config/db";
-import Alerta from "../../models/Alert";
-import Evidence from "../../models/Evidence";
-import HistorialEstado from "../../models/HistorialEstado";
+import Alerta from "../../models/alerts/Alert";
+import Evidence from "../../models/alerts/Evidence";
+import HistorialEstado from "../../models/alerts/HistorialEstado";
 import { resolveAlertCategoryCatalogRecord } from "../../utils/categoryUtils";
 import {
   getAlertWorkflowStateIds,

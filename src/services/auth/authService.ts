@@ -1,9 +1,8 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { Request } from "express";
-import User from "../../models/User";
+import User from "../../models/users/User";
 import { AppError } from "../../utils/appError";
-import { parsePositiveInt } from "../../utils/number";
 import { getRoleNameForToken, resolveRoleIdByCanonicalName } from "../../utils/roleUtils";
 import {
   normalizeEmail,
@@ -14,9 +13,7 @@ import {
   validatePhone,
 } from "../../utils/userValidation";
 import {
-  getRecaptchaMinScore,
-  isRecaptchaConfigured,
-  verifyRecaptchaToken,
+  validateRecaptchaOrThrow,
 } from "./recaptchaService";
 import {
   buildPasswordActionLink,
@@ -48,8 +45,22 @@ interface PasswordActionPayload {
   type?: "password_reset" | "set_password";
 }
 
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOGIN_LOCK_MINUTES = 10;
+const parsePositiveInteger = (
+  value: string | undefined,
+  fallback: number
+): number => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const MAX_LOGIN_ATTEMPTS = parsePositiveInteger(
+  process.env.AUTH_MAX_LOGIN_ATTEMPTS,
+  5
+);
+const LOGIN_LOCK_MINUTES = parsePositiveInteger(
+  process.env.AUTH_LOGIN_LOCK_MINUTES,
+  10
+);
 
 const buildLockedLoginMessage = (lockedUntil: Date): string => {
   const formattedTime = lockedUntil.toLocaleTimeString("es-CO", {
@@ -92,68 +103,11 @@ const validateRegistrationPayload = (payload: {
   return null;
 };
 
-const validateRecaptchaOrThrow = async (
-  req: Request,
-  captchaToken: unknown,
-  expectedAction: "login" | "register"
-) => {
-  if (!isRecaptchaConfigured()) {
-    return;
-  }
-
-  if (typeof captchaToken !== "string" || !captchaToken.trim()) {
-    throw new AppError(400, "Debes completar el reCAPTCHA.");
-  }
-
-  try {
-    const recaptchaResult = await verifyRecaptchaToken(captchaToken, req.ip);
-    const minScore = getRecaptchaMinScore();
-
-    if (!recaptchaResult.success) {
-      console.warn("reCAPTCHA invalido:", recaptchaResult.errorCodes);
-      throw new AppError(400, "La validacion reCAPTCHA fallo. Intentalo otra vez.");
-    }
-
-    if (recaptchaResult.action && recaptchaResult.action !== expectedAction) {
-      console.warn("reCAPTCHA action invalida:", {
-        expectedAction,
-        action: recaptchaResult.action,
-      });
-      throw new AppError(
-        400,
-        "La validacion reCAPTCHA no coincide con la accion esperada."
-      );
-    }
-
-    if (recaptchaResult.score !== null && recaptchaResult.score < minScore) {
-      console.warn("reCAPTCHA score bajo:", {
-        expectedAction,
-        score: recaptchaResult.score,
-        minScore,
-      });
-      throw new AppError(
-        400,
-        "La validacion reCAPTCHA fue considerada riesgosa. Intentalo otra vez."
-      );
-    }
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    console.error("Error verificando reCAPTCHA:", error);
-    throw new AppError(
-      502,
-      "No se pudo validar reCAPTCHA en este momento. Intentalo de nuevo."
-    );
-  }
-};
-
 export const registerUser = async (
   req: Request,
   payload: Record<string, unknown>
 ) => {
-  const { nombre, apellido, email, contrasena, telefono, id_rol, captchaToken } =
+  const { nombre, apellido, email, contrasena, telefono, captchaToken } =
     payload;
 
   const normalizedNombre = typeof nombre === "string" ? nombre.trim() : "";
@@ -182,7 +136,6 @@ export const registerUser = async (
   await validateRecaptchaOrThrow(req, captchaToken, "register");
 
   const hashedPassword = await bcrypt.hash(normalizedPassword, 10);
-  const requestedRoleId = parsePositiveInt(id_rol);
   const defaultCitizenRoleId = await resolveRoleIdByCanonicalName("ciudadano");
 
   if (!defaultCitizenRoleId) {
@@ -198,7 +151,7 @@ export const registerUser = async (
     email: normalizedEmail,
     contrasena: hashedPassword,
     telefono: normalizedTelefono,
-    id_rol: requestedRoleId ?? defaultCitizenRoleId,
+    id_rol: defaultCitizenRoleId,
     estado: true,
     email_verificado: false,
   });
@@ -391,7 +344,13 @@ export const verifyUserAccount = async (_req: Request, token: string) => {
   }
 };
 
-export const sendPasswordReset = async (emailValue: unknown) => {
+export const sendPasswordReset = async (
+  req: Request,
+  emailValue: unknown,
+  captchaToken: unknown
+) => {
+  await validateRecaptchaOrThrow(req, captchaToken, "forgot_password");
+
   const normalizedEmail = normalizeEmail(emailValue);
   const emailError = validateEmail(normalizedEmail);
   if (emailError) {
@@ -458,11 +417,12 @@ export const resendUserVerificationEmail = async (
 };
 
 export const resetUserPassword = async (
+  req: Request,
   token: string,
-  newPasswordValue: unknown
+  payload: { nuevaContrasena?: unknown; captchaToken?: unknown }
 ) => {
   const nuevaContrasena =
-    typeof newPasswordValue === "string" ? newPasswordValue.trim() : "";
+    typeof payload.nuevaContrasena === "string" ? payload.nuevaContrasena.trim() : "";
 
   try {
     const decoded = jwt.verify(
@@ -474,6 +434,12 @@ export const resetUserPassword = async (
     if (!user) {
       throw new AppError(404, "Usuario no encontrado");
     }
+
+    await validateRecaptchaOrThrow(
+      req,
+      payload.captchaToken,
+      decoded.type === "set_password" ? "set_password" : "password_reset"
+    );
 
     const passwordError = validatePassword(nuevaContrasena);
     if (passwordError) {

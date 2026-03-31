@@ -128,6 +128,18 @@ CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz12345
 
 # Frontend
 FRONTEND_URL=http://localhost:5173
+
+# Rate limiting de autenticacion
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_LOGIN_RATE_LIMIT_MAX=10
+AUTH_REGISTER_RATE_LIMIT_MAX=5
+AUTH_FORGOT_PASSWORD_RATE_LIMIT_MAX=5
+AUTH_RESEND_VERIFICATION_RATE_LIMIT_MAX=5
+AUTH_RESET_PASSWORD_RATE_LIMIT_MAX=10
+
+# Bloqueo por intentos fallidos de login
+AUTH_MAX_LOGIN_ATTEMPTS=5
+AUTH_LOGIN_LOCK_MINUTES=10
 ```
 
 **Generar JWT_SECRET seguro:**
@@ -179,6 +191,20 @@ npm run dev
 El servidor se ejecutara por defecto en:
 ```
 http://localhost:4000
+```
+
+## Documentacion OpenAPI
+
+Una vez iniciado el backend, la documentacion queda disponible en:
+
+```bash
+http://localhost:4000/api/docs
+```
+
+El spec en formato JSON queda disponible en:
+
+```bash
+http://localhost:4000/api/docs/openapi.json
 ```
 
 ##  Correos - Gmail API y SMTP

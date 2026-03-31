@@ -1,9 +1,9 @@
 import { Op, WhereOptions } from "sequelize";
-import Alerta from "../../models/Alert";
-import Barrio from "../../models/Barrio";
-import Categoria from "../../models/Categoria";
-import Comuna from "../../models/Comuna";
-import Estado from "../../models/Estado";
+import Alerta from "../../models/alerts/Alert";
+import Barrio from "../../models/catalogs/Barrio";
+import Categoria from "../../models/catalogs/Categoria";
+import Comuna from "../../models/catalogs/Comuna";
+import Estado from "../../models/catalogs/Estado";
 import { resolveAlertCategoryCatalogRecord } from "../../utils/categoryUtils";
 import { resolveRequiredStateIds } from "../../utils/stateUtils";
 

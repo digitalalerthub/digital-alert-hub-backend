@@ -1,45 +1,48 @@
 import { DataTypes, Model, Optional } from "sequelize";
-import { sequelize } from "../config/db";
+import { sequelize } from "../../config/db";
 
-interface EvidenceAttributes {
-  id_evidencia: number;
+interface HistorialEstadoAttributes {
+  id_historial: number;
   id_alerta: number;
-  tipo_evidencia?: string | null;
-  url_evidencia: string;
+  id_estado: number;
   created_by_id?: number | null;
   deleted_by_id?: number | null;
   created_at?: Date;
-  updated_at?: Date;
+  updated_at?: Date | null;
   deleted_at?: Date | null;
 }
 
-type EvidenceCreationAttributes = Optional<
-  EvidenceAttributes,
-  "id_evidencia" | "tipo_evidencia" | "created_by_id" | "deleted_by_id" | "created_at" | "updated_at" | "deleted_at"
+type HistorialEstadoCreationAttributes = Optional<
+  HistorialEstadoAttributes,
+  | "id_historial"
+  | "created_by_id"
+  | "deleted_by_id"
+  | "created_at"
+  | "updated_at"
+  | "deleted_at"
 >;
 
-class Evidence
-  extends Model<EvidenceAttributes, EvidenceCreationAttributes>
-  implements EvidenceAttributes
+class HistorialEstado
+  extends Model<HistorialEstadoAttributes, HistorialEstadoCreationAttributes>
+  implements HistorialEstadoAttributes
 {
-  public id_evidencia!: number;
+  public id_historial!: number;
   public id_alerta!: number;
-  public tipo_evidencia?: string | null;
-  public url_evidencia!: string;
+  public id_estado!: number;
   public created_by_id?: number | null;
   public deleted_by_id?: number | null;
   public readonly created_at!: Date;
-  public readonly updated_at!: Date;
+  public readonly updated_at!: Date | null;
   public readonly deleted_at!: Date | null;
 }
 
-Evidence.init(
+HistorialEstado.init(
   {
-    id_evidencia: {
+    id_historial: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
-      field: "id_evidencia",
+      field: "id_historial",
     },
     id_alerta: {
       type: DataTypes.INTEGER,
@@ -50,15 +53,14 @@ Evidence.init(
         key: "id_alerta",
       },
     },
-    tipo_evidencia: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "tipo_evidencia",
-    },
-    url_evidencia: {
-      type: DataTypes.TEXT,
+    id_estado: {
+      type: DataTypes.INTEGER,
       allowNull: false,
-      field: "url_evidencia",
+      field: "id_estado",
+      references: {
+        model: "estados",
+        key: "id_estado",
+      },
     },
     created_by_id: {
       type: DataTypes.INTEGER,
@@ -73,18 +75,13 @@ Evidence.init(
   },
   {
     sequelize,
-    tableName: "evidencias",
+    tableName: "historial_estado",
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
     deletedAt: "deleted_at",
     paranoid: true,
-    indexes: [
-      {
-        fields: ["id_alerta", "created_at"],
-      },
-    ],
   }
 );
 
-export default Evidence;
+export default HistorialEstado;

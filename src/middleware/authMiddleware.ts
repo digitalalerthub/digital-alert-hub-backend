@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import Usuario from "../models/User";
+import Usuario from "../models/users/User";
 import { AppError } from "../utils/appError";
 import {
   attachRequestUserFromToken,

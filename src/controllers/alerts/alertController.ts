@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { col, fn } from "sequelize";
-import Alerta from "../../models/Alert";
-import AlertReaction from "../../models/AlertReaction";
+import Alerta from "../../models/alerts/Alert";
+import AlertReaction from "../../models/alerts/AlertReaction";
 import {
   getUploadedEvidenceFiles,
   isMissingCloudinaryConfigurationError,
