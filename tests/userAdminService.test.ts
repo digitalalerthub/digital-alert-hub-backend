@@ -8,8 +8,9 @@ const mockSendAccountSetupEmail = vi.fn();
 const mockHash = vi.fn();
 const mockRandomBytes = vi.fn();
 const mockTransaction = vi.fn();
+const mockValidateRecaptchaOrThrow = vi.fn();
 
-vi.mock('../src/models/User', () => ({
+vi.mock('../src/models/users/User', () => ({
     default: {
         findOne: mockFindOne,
         create: mockCreate,
@@ -28,6 +29,10 @@ vi.mock('../src/services/auth/authLinkService', () => ({
 
 vi.mock('../src/services/auth/authMailService', () => ({
     sendAccountSetupEmail: mockSendAccountSetupEmail,
+}));
+
+vi.mock('../src/services/auth/recaptchaService', () => ({
+    validateRecaptchaOrThrow: mockValidateRecaptchaOrThrow,
 }));
 
 vi.mock('../src/utils/roleUtils', () => ({
@@ -53,9 +58,10 @@ describe('createUserFromAdmin', () => {
         const { createUserFromAdmin } = await import(
             '../src/services/users/userAdminService'
         );
+        const req = { ip: '127.0.0.1' } as any;
 
         await expect(
-            createUserFromAdmin({
+            createUserFromAdmin(req, {
                 nombre: 'Andres',
                 apellido: 'Monsalve',
                 email: 'correo-invalido',
@@ -96,15 +102,22 @@ describe('createUserFromAdmin', () => {
         const { createUserFromAdmin } = await import(
             '../src/services/users/userAdminService'
         );
+        const req = { ip: '127.0.0.1' } as any;
 
-        const result = await createUserFromAdmin({
+        const result = await createUserFromAdmin(req, {
             nombre: '  Andres ',
             apellido: ' Monsalve ',
             email: ' ANDRES@Test.com ',
             telefono: ' 3001234567 ',
             id_rol: 1,
+            captchaToken: 'token-test',
         });
 
+        expect(mockValidateRecaptchaOrThrow).toHaveBeenCalledWith(
+            req,
+            'token-test',
+            'admin_create_user',
+        );
         expect(mockCreate).toHaveBeenCalledWith(
             expect.objectContaining({
                 nombre: 'Andres',

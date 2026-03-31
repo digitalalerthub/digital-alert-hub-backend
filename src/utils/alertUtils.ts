@@ -1,5 +1,5 @@
 import { Request } from "express";
-import Barrio from "../models/Barrio";
+import Barrio from "../models/catalogs/Barrio";
 import { isAdminRoleName, resolveCanonicalRoleName } from "./roleUtils";
 import { resolveRequiredStateIds } from "./stateUtils";
 

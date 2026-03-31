@@ -1,9 +1,11 @@
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
+import { Request } from "express";
 import { sequelize } from "../../config/db";
-import User from "../../models/User";
+import User from "../../models/users/User";
 import { buildPasswordActionLink } from "../auth/authLinkService";
 import { sendAccountSetupEmail } from "../auth/authMailService";
+import { validateRecaptchaOrThrow } from "../auth/recaptchaService";
 import { AppError } from "../../utils/appError";
 import { parsePositiveInt } from "../../utils/number";
 import { resolveRoleIdByCanonicalName } from "../../utils/roleUtils";
@@ -22,6 +24,7 @@ type CreateUserPayload = {
   email?: unknown;
   telefono?: unknown;
   id_rol?: unknown;
+  captchaToken?: unknown;
 };
 
 type UpdateUserPayload = {
@@ -36,7 +39,10 @@ export const listUsersForAdmin = async () =>
     attributes: { exclude: ["contrasena"] },
   });
 
-export const createUserFromAdmin = async (payload: CreateUserPayload) => {
+export const createUserFromAdmin = async (
+  req: Request,
+  payload: CreateUserPayload
+) => {
   const normalizedNombre = normalizeName(payload.nombre);
   const normalizedApellido = normalizeName(payload.apellido);
   const normalizedEmail = normalizeEmail(payload.email);
@@ -62,6 +68,8 @@ export const createUserFromAdmin = async (payload: CreateUserPayload) => {
   if (existingUser) {
     throw new AppError(409, "El correo ya esta registrado");
   }
+
+  await validateRecaptchaOrThrow(req, payload.captchaToken, "admin_create_user");
 
   const requestedRoleId = parsePositiveInt(payload.id_rol);
   if (

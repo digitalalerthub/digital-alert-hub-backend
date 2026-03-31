@@ -1,48 +1,54 @@
 import { DataTypes, Model, Optional } from "sequelize";
-import { sequelize } from "../config/db";
+import { sequelize } from "../../config/db";
 
-interface HistorialEstadoAttributes {
-  id_historial: number;
+interface CommentAttributes {
+  id_comentario: number;
+  id_usuario: number;
   id_alerta: number;
-  id_estado: number;
+  texto_comentario: string;
   created_by_id?: number | null;
   deleted_by_id?: number | null;
   created_at?: Date;
-  updated_at?: Date | null;
+  updated_at?: Date;
   deleted_at?: Date | null;
 }
 
-type HistorialEstadoCreationAttributes = Optional<
-  HistorialEstadoAttributes,
-  | "id_historial"
-  | "created_by_id"
-  | "deleted_by_id"
-  | "created_at"
-  | "updated_at"
-  | "deleted_at"
+type CommentCreationAttributes = Optional<
+  CommentAttributes,
+  "id_comentario" | "created_by_id" | "deleted_by_id" | "created_at" | "updated_at" | "deleted_at"
 >;
 
-class HistorialEstado
-  extends Model<HistorialEstadoAttributes, HistorialEstadoCreationAttributes>
-  implements HistorialEstadoAttributes
+class Comment
+  extends Model<CommentAttributes, CommentCreationAttributes>
+  implements CommentAttributes
 {
-  public id_historial!: number;
+  public id_comentario!: number;
+  public id_usuario!: number;
   public id_alerta!: number;
-  public id_estado!: number;
+  public texto_comentario!: string;
   public created_by_id?: number | null;
   public deleted_by_id?: number | null;
   public readonly created_at!: Date;
-  public readonly updated_at!: Date | null;
+  public readonly updated_at!: Date;
   public readonly deleted_at!: Date | null;
 }
 
-HistorialEstado.init(
+Comment.init(
   {
-    id_historial: {
+    id_comentario: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
-      field: "id_historial",
+      field: "id_comentario",
+    },
+    id_usuario: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: "id_usuario",
+      references: {
+        model: "usuarios",
+        key: "id_usuario",
+      },
     },
     id_alerta: {
       type: DataTypes.INTEGER,
@@ -53,14 +59,10 @@ HistorialEstado.init(
         key: "id_alerta",
       },
     },
-    id_estado: {
-      type: DataTypes.INTEGER,
+    texto_comentario: {
+      type: DataTypes.TEXT,
       allowNull: false,
-      field: "id_estado",
-      references: {
-        model: "estados",
-        key: "id_estado",
-      },
+      field: "texto_comentario",
     },
     created_by_id: {
       type: DataTypes.INTEGER,
@@ -75,13 +77,18 @@ HistorialEstado.init(
   },
   {
     sequelize,
-    tableName: "historial_estado",
+    tableName: "comentarios",
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
     deletedAt: "deleted_at",
     paranoid: true,
+    indexes: [
+      {
+        fields: ["id_alerta", "created_at"],
+      },
+    ],
   }
 );
 
-export default HistorialEstado;
+export default Comment;
