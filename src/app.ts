@@ -15,6 +15,7 @@ import roleRoutes from "./routes/users/roleRoutes";
 import locationRoutes from "./routes/catalogs/locationRoutes";
 import reactionRoutes from "./routes/catalogs/reactionRoutes";
 import catalogRoutes from "./routes/catalogs/catalogRoutes";
+import docsRoutes from "./routes/docs/docsRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 
 
@@ -22,6 +23,7 @@ import authGoogleRoutes from "./routes/auth/authGoogle"; // <-- IMPORTANTE
 import "./config/googleStrategy"; // <-- INICIALIZA PASSPORT GOOGLE
 
 const app: Application = express();
+app.set("trust proxy", 1);
 
 // Configurar CORS para desarrollo y producción
 const corsOptions = {
@@ -48,6 +50,7 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/reactions", reactionRoutes);
 app.use("/api/catalogs", catalogRoutes);
+app.use("/api/docs", docsRoutes);
 
 
 // ENDPOINT RAÍZ

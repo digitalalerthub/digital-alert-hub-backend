@@ -12,7 +12,7 @@ export const getAllUsers = async (_req: Request, res: Response) => {
 };
 
 export const createUserByAdmin = async (req: Request, res: Response) => {
-  const result = await createUserFromAdmin(req.body ?? {});
+  const result = await createUserFromAdmin(req, req.body ?? {});
   return res.status(201).json(result);
 };
 

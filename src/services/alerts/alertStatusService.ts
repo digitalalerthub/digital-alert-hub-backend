@@ -1,7 +1,7 @@
 import { Request } from "express";
 import { sequelize } from "../../config/db";
-import Alert from "../../models/Alert";
-import HistorialEstado from "../../models/HistorialEstado";
+import Alert from "../../models/alerts/Alert";
+import HistorialEstado from "../../models/alerts/HistorialEstado";
 import { AppError } from "../../utils/appError";
 import { parsePositiveInt } from "../../utils/number";
 import {

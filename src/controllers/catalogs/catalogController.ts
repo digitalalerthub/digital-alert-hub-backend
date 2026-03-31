@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import Categoria from "../../models/Categoria";
-import Estado from "../../models/Estado";
+import Categoria from "../../models/catalogs/Categoria";
+import Estado from "../../models/catalogs/Estado";
 
 export const listEstados = async (_req: Request, res: Response) => {
   const estados = await Estado.findAll({

@@ -1,4 +1,4 @@
-import Reaction from "../../models/Reaction";
+import Reaction from "../../models/catalogs/Reaction";
 
 export const listReactionsCatalog = async () =>
   Reaction.findAll({

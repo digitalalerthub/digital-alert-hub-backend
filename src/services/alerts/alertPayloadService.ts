@@ -1,11 +1,11 @@
 import { col, fn } from "sequelize";
-import Alerta from "../../models/Alert";
-import Barrio from "../../models/Barrio";
-import Categoria from "../../models/Categoria";
-import Comuna from "../../models/Comuna";
-import Comment from "../../models/Comment";
-import Evidence from "../../models/Evidence";
-import Usuario from "../../models/User";
+import Alerta from "../../models/alerts/Alert";
+import Barrio from "../../models/catalogs/Barrio";
+import Categoria from "../../models/catalogs/Categoria";
+import Comuna from "../../models/catalogs/Comuna";
+import Comment from "../../models/alerts/Comment";
+import Evidence from "../../models/alerts/Evidence";
+import Usuario from "../../models/users/User";
 
 type AlertEvidencePayload = {
   id_evidencia: number;

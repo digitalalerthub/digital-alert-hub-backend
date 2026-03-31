@@ -1,5 +1,5 @@
-import Alert from "../../models/Alert";
-import User from "../../models/User";
+import Alert from "../../models/alerts/Alert";
+import User from "../../models/users/User";
 import { AppError } from "../../utils/appError";
 import { resolveRequiredStateIds } from "../../utils/stateUtils";
 

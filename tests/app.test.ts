@@ -28,4 +28,13 @@ describe('app health endpoints', () => {
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ status: 'ok' });
     });
+
+    it('GET /api/docs/openapi.json expone el spec OpenAPI', async () => {
+        const response = await request(app).get('/api/docs/openapi.json');
+
+        expect(response.status).toBe(200);
+        expect(response.body.openapi).toBe('3.0.3');
+        expect(response.body.info?.title).toContain('Digital Alert Hub');
+        expect(response.body.paths?.['/api/auth/login']).toBeTruthy();
+    });
 });

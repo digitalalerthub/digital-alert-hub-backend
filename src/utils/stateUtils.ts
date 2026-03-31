@@ -1,4 +1,4 @@
-import Estado from "../models/Estado";
+import Estado from "../models/catalogs/Estado";
 
 export type CanonicalStateName =
   | "pendiente"

@@ -1,3 +1,6 @@
+import { Request } from "express";
+import { AppError } from "../../utils/appError";
+
 interface RecaptchaVerifyApiResponse {
   success: boolean;
   score?: number;
@@ -13,6 +16,14 @@ export interface RecaptchaVerificationResult {
   hostname: string | null;
   errorCodes: string[];
 }
+
+export type RecaptchaExpectedAction =
+  | "login"
+  | "register"
+  | "forgot_password"
+  | "password_reset"
+  | "set_password"
+  | "admin_create_user";
 
 const RECAPTCHA_VERIFY_URL =
   "https://www.google.com/recaptcha/api/siteverify";
@@ -79,4 +90,61 @@ export const verifyRecaptchaToken = async (
     hostname: typeof data.hostname === "string" ? data.hostname : null,
     errorCodes: data["error-codes"] ?? [],
   };
+};
+
+export const validateRecaptchaOrThrow = async (
+  req: Request,
+  captchaToken: unknown,
+  expectedAction: RecaptchaExpectedAction
+) => {
+  if (!isRecaptchaConfigured()) {
+    return;
+  }
+
+  if (typeof captchaToken !== "string" || !captchaToken.trim()) {
+    throw new AppError(400, "Debes completar el reCAPTCHA.");
+  }
+
+  try {
+    const recaptchaResult = await verifyRecaptchaToken(captchaToken, req.ip);
+    const minScore = getRecaptchaMinScore();
+
+    if (!recaptchaResult.success) {
+      console.warn("reCAPTCHA invalido:", recaptchaResult.errorCodes);
+      throw new AppError(400, "La validacion reCAPTCHA fallo. Intentalo otra vez.");
+    }
+
+    if (recaptchaResult.action && recaptchaResult.action !== expectedAction) {
+      console.warn("reCAPTCHA action invalida:", {
+        expectedAction,
+        action: recaptchaResult.action,
+      });
+      throw new AppError(
+        400,
+        "La validacion reCAPTCHA no coincide con la accion esperada."
+      );
+    }
+
+    if (recaptchaResult.score !== null && recaptchaResult.score < minScore) {
+      console.warn("reCAPTCHA score bajo:", {
+        expectedAction,
+        score: recaptchaResult.score,
+        minScore,
+      });
+      throw new AppError(
+        400,
+        "La validacion reCAPTCHA fue considerada riesgosa. Intentalo otra vez."
+      );
+    }
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    console.error("Error verificando reCAPTCHA:", error);
+    throw new AppError(
+      502,
+      "No se pudo validar reCAPTCHA en este momento. Intentalo de nuevo."
+    );
+  }
 };

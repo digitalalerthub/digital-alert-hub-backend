@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import Barrio from "../../models/Barrio";
-import Comuna from "../../models/Comuna";
+import Barrio from "../../models/catalogs/Barrio";
+import Comuna from "../../models/catalogs/Comuna";
 import { AppError } from "../../utils/appError";
 
 export const listComunas = async (_req: Request, res: Response) => {
