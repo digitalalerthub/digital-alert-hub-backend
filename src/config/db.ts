@@ -491,6 +491,21 @@ const ensureUserAuthSchema = async (): Promise<void> => {
 
   await sequelize.query(`
     ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS password_action_version INTEGER;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS oauth_login_version INTEGER;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS session_version INTEGER;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
     ADD COLUMN IF NOT EXISTS bloqueo_hasta TIMESTAMP WITH TIME ZONE NULL;
   `);
 
@@ -498,6 +513,24 @@ const ensureUserAuthSchema = async (): Promise<void> => {
     UPDATE usuarios
     SET email_verificado = COALESCE(email_verificado, estado, false)
     WHERE email_verificado IS NULL;
+  `);
+
+  await sequelize.query(`
+    UPDATE usuarios
+    SET password_action_version = COALESCE(password_action_version, 0)
+    WHERE password_action_version IS NULL;
+  `);
+
+  await sequelize.query(`
+    UPDATE usuarios
+    SET oauth_login_version = COALESCE(oauth_login_version, 0)
+    WHERE oauth_login_version IS NULL;
+  `);
+
+  await sequelize.query(`
+    UPDATE usuarios
+    SET session_version = COALESCE(session_version, 0)
+    WHERE session_version IS NULL;
   `);
 
   await sequelize.query(`
@@ -513,12 +546,42 @@ const ensureUserAuthSchema = async (): Promise<void> => {
 
   await sequelize.query(`
     ALTER TABLE usuarios
+    ALTER COLUMN password_action_version SET DEFAULT 0;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN oauth_login_version SET DEFAULT 0;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN session_version SET DEFAULT 0;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
     ALTER COLUMN intentos_fallidos SET DEFAULT 0;
   `);
 
   await sequelize.query(`
     ALTER TABLE usuarios
     ALTER COLUMN email_verificado SET NOT NULL;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN password_action_version SET NOT NULL;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN oauth_login_version SET NOT NULL;
+  `);
+
+  await sequelize.query(`
+    ALTER TABLE usuarios
+    ALTER COLUMN session_version SET NOT NULL;
   `);
 
   await sequelize.query(`

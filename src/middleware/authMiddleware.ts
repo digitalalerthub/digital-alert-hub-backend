@@ -3,15 +3,16 @@ import Usuario from "../models/users/User";
 import { AppError } from "../utils/appError";
 import {
   attachRequestUserFromToken,
-  extractBearerToken,
+  extractRequestToken,
 } from "../services/auth/authSessionService";
+import { getRoleNameForToken } from "../utils/roleUtils";
 
 export const verifyToken = async (
   req: Request,
   _res: Response,
   next: NextFunction
 ) => {
-  const token = extractBearerToken(req.headers.authorization);
+  const token = extractRequestToken(req);
 
   if (!token) {
     next(new AppError(403, "Token requerido"));
@@ -26,7 +27,7 @@ export const verifyToken = async (
     }
 
     const user = await Usuario.findByPk(req.user?.id, {
-      attributes: ["id_usuario", "estado"],
+      attributes: ["id_usuario", "estado", "id_rol", "email", "session_version"],
     });
 
     if (!user) {
@@ -44,6 +45,27 @@ export const verifyToken = async (
       return;
     }
 
+    const tokenSessionVersion =
+      Number.isInteger(req.user?.session_version) &&
+      req.user?.session_version !== undefined
+        ? Number(req.user.session_version)
+        : 0;
+    const currentSessionVersion = user.session_version ?? 0;
+
+    if (currentSessionVersion !== tokenSessionVersion) {
+      next(new AppError(401, "Sesion revocada o expirada"));
+      return;
+    }
+
+    req.user = {
+      ...req.user,
+      id: user.id_usuario,
+      email: user.email,
+      rol: user.id_rol,
+      role_name: await getRoleNameForToken(user.id_rol),
+      session_version: currentSessionVersion,
+    };
+
     next();
   } catch {
     next(new AppError(401, "Token invalido o expirado"));
@@ -55,7 +77,7 @@ export const optionalVerifyToken = (
   _res: Response,
   next: NextFunction
 ) => {
-  const token = extractBearerToken(req.headers.authorization);
+  const token = extractRequestToken(req);
 
   if (!token) {
     next();

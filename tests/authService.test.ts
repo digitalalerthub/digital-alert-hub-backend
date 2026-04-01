@@ -11,7 +11,9 @@ const mockBuildPasswordActionLink = vi.fn();
 const mockSendAccountCreatedEmail = vi.fn();
 const mockSendPasswordResetEmail = vi.fn();
 const mockHash = vi.fn();
+const mockCompare = vi.fn();
 const mockJwtVerify = vi.fn();
+const mockJwtSign = vi.fn();
 
 vi.mock("../src/models/users/User", () => ({
   default: {
@@ -44,12 +46,14 @@ vi.mock("../src/services/auth/authMailService", () => ({
 vi.mock("bcrypt", () => ({
   default: {
     hash: mockHash,
+    compare: mockCompare,
   },
 }));
 
 vi.mock("jsonwebtoken", () => ({
   default: {
     verify: mockJwtVerify,
+    sign: mockJwtSign,
   },
 }));
 
@@ -104,8 +108,11 @@ describe("authService security flows", () => {
   });
 
   it("exige reCAPTCHA al solicitar recuperacion de contrasena", async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
     mockFindOne.mockResolvedValue({
+      password_action_version: 0,
       email: "ana@test.com",
+      update,
     });
     mockBuildPasswordActionLink.mockReturnValue("http://frontend.test/reset");
     mockSendPasswordResetEmail.mockResolvedValue({
@@ -123,10 +130,58 @@ describe("authService security flows", () => {
       "captcha-forgot",
       "forgot_password"
     );
+    expect(update).toHaveBeenCalledWith({
+      password_action_version: 1,
+    });
     expect(mockSendPasswordResetEmail).toHaveBeenCalledWith(
       "ana@test.com",
       "http://frontend.test/reset"
     );
+  });
+
+  it("no revela si el correo no existe al solicitar recuperacion", async () => {
+    mockFindOne.mockResolvedValue(null);
+
+    const { sendPasswordReset } = await import("../src/services/auth/authService");
+    const req = { ip: "127.0.0.1" } as any;
+
+    const result = await sendPasswordReset(req, "desconocido@test.com", "captcha-forgot");
+
+    expect(result).toMatchObject({
+      message: "Si el correo existe, enviaremos instrucciones de recuperacion.",
+      email_provider: null,
+    });
+    expect(mockSendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+
+  it("usa un mensaje generico para evitar enumeracion en login", async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    mockFindOne.mockResolvedValue({
+      contrasena: "stored-hash",
+      intentos_fallidos: 0,
+      bloqueo_hasta: null,
+      update,
+    });
+    mockCompare.mockResolvedValue(false);
+
+    const { loginUser } = await import("../src/services/auth/authService");
+    const req = { ip: "127.0.0.1" } as any;
+
+    await expect(
+      loginUser(req, {
+        email: "ana@test.com",
+        contrasena: "clave-invalida",
+        captchaToken: "captcha-login",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      message: "Credenciales invalidas o cuenta no disponible.",
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      intentos_fallidos: 1,
+      bloqueo_hasta: null,
+    });
   });
 
   it("exige reCAPTCHA al establecer contrasena desde el flujo creado por admin", async () => {
@@ -136,8 +191,11 @@ describe("authService security flows", () => {
       id: 15,
       email: "ana@test.com",
       type: "set_password",
+      version: 4,
     });
     mockFindByPk.mockResolvedValue({
+      email: "ana@test.com",
+      password_action_version: 4,
       update,
     });
     mockHash.mockResolvedValue("hashed-password");
@@ -158,10 +216,73 @@ describe("authService security flows", () => {
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         contrasena: "hashed-password",
+        password_action_version: 5,
         email_verificado: true,
         estado: true,
       })
     );
     expect(result.message).toContain("Cuenta activada");
+  });
+
+  it("rechaza un token de recuperacion reutilizado", async () => {
+    mockJwtVerify.mockReturnValue({
+      id: 15,
+      email: "ana@test.com",
+      type: "password_reset",
+      version: 2,
+    });
+    mockFindByPk.mockResolvedValue({
+      email: "ana@test.com",
+      password_action_version: 3,
+    });
+
+    const { resetUserPassword } = await import("../src/services/auth/authService");
+    const req = { ip: "127.0.0.1" } as any;
+
+    await expect(
+      resetUserPassword(req, "token-123", {
+        nuevaContrasena: "abc12345",
+        captchaToken: "captcha-reset-password",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Este enlace ya fue usado o fue reemplazado por uno mas reciente",
+    });
+    expect(mockValidateRecaptchaOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("canjea el codigo temporal de Google por un token de sesion", async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    mockJwtVerify.mockReturnValue({
+      id: 15,
+      email: "ana@test.com",
+      type: "google_callback",
+      version: 2,
+    });
+    mockFindByPk.mockResolvedValue({
+      id_usuario: 15,
+      id_rol: 2,
+      email: "ana@test.com",
+      estado: true,
+      oauth_login_version: 2,
+      update,
+    });
+    mockGetRoleNameForToken.mockResolvedValue("ciudadano");
+    mockJwtSign.mockReturnValue("session-token");
+
+    const { exchangeGoogleCallbackCode } = await import(
+      "../src/services/auth/authService"
+    );
+
+    const result = await exchangeGoogleCallbackCode({
+      code: "google-code-123",
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      oauth_login_version: 3,
+    });
+    expect(result).toMatchObject({
+      token: "session-token",
+    });
   });
 });
