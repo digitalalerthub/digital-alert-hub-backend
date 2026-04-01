@@ -31,6 +31,7 @@ interface JWTPayload {
   email: string;
   rol: number;
   role_name?: string | null;
+  session_version: number;
 }
 
 interface EmailVerificationPayload {
@@ -43,6 +44,14 @@ interface PasswordActionPayload {
   id: number;
   email: string;
   type?: "password_reset" | "set_password";
+  version?: number;
+}
+
+interface GoogleCallbackCodePayload {
+  id: number;
+  email: string;
+  type: "google_callback";
+  version: number;
 }
 
 const parsePositiveInteger = (
@@ -62,13 +71,40 @@ const LOGIN_LOCK_MINUTES = parsePositiveInteger(
   10
 );
 
-const buildLockedLoginMessage = (lockedUntil: Date): string => {
-  const formattedTime = lockedUntil.toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
+const GENERIC_LOGIN_ERROR_MESSAGE =
+  "Credenciales invalidas o cuenta no disponible.";
+const GENERIC_FORGOT_PASSWORD_MESSAGE =
+  "Si el correo existe, enviaremos instrucciones de recuperacion.";
+const GENERIC_GOOGLE_CODE_ERROR_MESSAGE =
+  "Codigo de autenticacion invalido o expirado.";
+
+const resolveSessionData = async (
+  user: Pick<User, "id_usuario" | "email" | "id_rol" | "session_version">
+) => {
+  const roleName = await getRoleNameForToken(user.id_rol);
+  if (!roleName) {
+    throw new AppError(
+      500,
+      "El rol del usuario no esta configurado en la base de datos"
+    );
+  }
+
+  const tokenPayload: JWTPayload = {
+    id: user.id_usuario,
+    email: user.email,
+    rol: user.id_rol,
+    role_name: roleName,
+    session_version: user.session_version ?? 0,
+  };
+
+  const token = jwt.sign(tokenPayload, process.env.JWT_SECRET as string, {
+    expiresIn: "8h",
   });
 
-  return `Cuenta bloqueada temporalmente por multiples intentos fallidos. Intenta de nuevo despues de las ${formattedTime}.`;
+  return {
+    token,
+    roleName,
+  };
 };
 
 const validateRegistrationPayload = (payload: {
@@ -210,12 +246,12 @@ export const loginUser = async (
 
   const user = await User.findOne({ where: { email: normalizedEmail } });
   if (!user) {
-    throw new AppError(404, "Usuario no encontrado");
+    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
   }
 
   const now = new Date();
   if (user.bloqueo_hasta && user.bloqueo_hasta > now) {
-    throw new AppError(423, buildLockedLoginMessage(user.bloqueo_hasta));
+    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
   }
 
   if (user.bloqueo_hasta && user.bloqueo_hasta <= now) {
@@ -235,7 +271,7 @@ export const loginUser = async (
         intentos_fallidos: 0,
         bloqueo_hasta: lockedUntil,
       });
-      throw new AppError(423, buildLockedLoginMessage(lockedUntil));
+      throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
     }
 
     await user.update({
@@ -243,11 +279,7 @@ export const loginUser = async (
       bloqueo_hasta: null,
     });
 
-    const remainingAttempts = MAX_LOGIN_ATTEMPTS - nextFailedAttempts;
-    throw new AppError(
-      401,
-      `Contrasena incorrecta. Te quedan ${remainingAttempts} intentos antes del bloqueo temporal.`
-    );
+    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
   }
 
   if (user.intentos_fallidos !== 0 || user.bloqueo_hasta) {
@@ -258,37 +290,14 @@ export const loginUser = async (
   }
 
   if (!user.estado) {
-    throw new AppError(
-      403,
-      "Tu cuenta esta inactiva. Contacta al administrador para reactivarla."
-    );
+    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
   }
 
   if (!user.email_verificado) {
-    throw new AppError(
-      403,
-      "Debes confirmar tu correo para activar la cuenta antes de iniciar sesion."
-    );
+    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
   }
 
-  const roleName = await getRoleNameForToken(user.id_rol);
-  if (!roleName) {
-    throw new AppError(
-      500,
-      "El rol del usuario no esta configurado en la base de datos"
-    );
-  }
-
-  const tokenPayload: JWTPayload = {
-    id: user.id_usuario,
-    email: user.email,
-    rol: user.id_rol,
-    role_name: roleName,
-  };
-
-  const token = jwt.sign(tokenPayload, process.env.JWT_SECRET as string, {
-    expiresIn: "8h",
-  });
+  const { token, roleName } = await resolveSessionData(user);
 
   return {
     message: "Login exitoso",
@@ -357,30 +366,89 @@ export const sendPasswordReset = async (
     throw new AppError(400, emailError);
   }
 
-  console.log("Iniciando recuperacion de contrasena para:", normalizedEmail);
-
   const user = await User.findOne({ where: { email: normalizedEmail } });
   if (!user) {
-    console.log("Usuario no encontrado:", normalizedEmail);
-    throw new AppError(404, "Usuario no encontrado");
+    return {
+      message: GENERIC_FORGOT_PASSWORD_MESSAGE,
+      email_provider: null,
+    };
   }
 
-  console.log("Usuario encontrado:", user.email);
+  const nextPasswordActionVersion = (user.password_action_version ?? 0) + 1;
+  await user.update({
+    password_action_version: nextPasswordActionVersion,
+  });
 
   const resetLink = buildPasswordActionLink(user, "password_reset");
-  console.log("Link de recuperacion:", resetLink);
-
-  console.log(
-    "Enviando correo de recuperacion desde:",
-    process.env.GOOGLE_GMAIL_SENDER || process.env.EMAIL_USER
-  );
   const info = await sendPasswordResetEmail(normalizedEmail, resetLink);
-
-  console.log("Correo de recuperacion enviado:", info.provider, info.id);
   return {
-    message: "Correo de recuperacion enviado correctamente",
+    message: GENERIC_FORGOT_PASSWORD_MESSAGE,
     email_provider: info.provider,
   };
+};
+
+export const issueGoogleCallbackCode = async (user: User): Promise<string> => {
+  const nextOauthLoginVersion = (user.oauth_login_version ?? 0) + 1;
+  await user.update({
+    oauth_login_version: nextOauthLoginVersion,
+  });
+
+  const payload: GoogleCallbackCodePayload = {
+    id: user.id_usuario,
+    email: user.email,
+    type: "google_callback",
+    version: nextOauthLoginVersion,
+  };
+
+  return jwt.sign(payload, process.env.JWT_SECRET as string, {
+    expiresIn: "90s",
+  });
+};
+
+export const exchangeGoogleCallbackCode = async (
+  payload: { code?: unknown }
+) => {
+  const code = typeof payload.code === "string" ? payload.code.trim() : "";
+  if (!code) {
+    throw new AppError(400, GENERIC_GOOGLE_CODE_ERROR_MESSAGE);
+  }
+
+  try {
+    const decoded = jwt.verify(
+      code,
+      process.env.JWT_SECRET as string
+    ) as GoogleCallbackCodePayload;
+
+    if (decoded.type !== "google_callback") {
+      throw new AppError(400, GENERIC_GOOGLE_CODE_ERROR_MESSAGE);
+    }
+
+    const user = await User.findByPk(decoded.id);
+    if (!user || user.email !== decoded.email) {
+      throw new AppError(400, GENERIC_GOOGLE_CODE_ERROR_MESSAGE);
+    }
+
+    if (!user.estado) {
+      throw new AppError(403, GENERIC_LOGIN_ERROR_MESSAGE);
+    }
+
+    if ((user.oauth_login_version ?? 0) !== decoded.version) {
+      throw new AppError(400, GENERIC_GOOGLE_CODE_ERROR_MESSAGE);
+    }
+
+    await user.update({
+      oauth_login_version: decoded.version + 1,
+    });
+
+    const { token } = await resolveSessionData(user);
+    return { token };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(400, GENERIC_GOOGLE_CODE_ERROR_MESSAGE);
+  }
 };
 
 export const resendUserVerificationEmail = async (
@@ -429,16 +497,35 @@ export const resetUserPassword = async (
       token,
       process.env.JWT_SECRET as string
     ) as PasswordActionPayload;
+
+    const tokenType =
+      decoded.type === "set_password" ? "set_password" : "password_reset";
     const user = await User.findByPk(decoded.id);
 
     if (!user) {
       throw new AppError(404, "Usuario no encontrado");
     }
 
+    if (user.email !== decoded.email) {
+      throw new AppError(400, "Token invalido o expirado");
+    }
+
+    const tokenVersion =
+      Number.isInteger(decoded.version) && decoded.version !== undefined
+        ? decoded.version
+        : 0;
+
+    if ((user.password_action_version ?? 0) !== tokenVersion) {
+      throw new AppError(
+        400,
+        "Este enlace ya fue usado o fue reemplazado por uno mas reciente"
+      );
+    }
+
     await validateRecaptchaOrThrow(
       req,
       payload.captchaToken,
-      decoded.type === "set_password" ? "set_password" : "password_reset"
+      tokenType
     );
 
     const passwordError = validatePassword(nuevaContrasena);
@@ -447,10 +534,11 @@ export const resetUserPassword = async (
     }
 
     const hashedPassword = await bcrypt.hash(nuevaContrasena, 10);
-    const isAccountSetup = decoded.type === "set_password";
+    const isAccountSetup = tokenType === "set_password";
 
     await user.update({
       contrasena: hashedPassword,
+      password_action_version: tokenVersion + 1,
       ...(isAccountSetup ? { email_verificado: true, estado: true } : {}),
     });
 

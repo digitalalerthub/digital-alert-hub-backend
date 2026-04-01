@@ -107,6 +107,15 @@ export const createUserFromAdmin = async (
       { transaction }
     );
 
+    const nextPasswordActionVersion =
+      (createdUser.password_action_version ?? 0) + 1;
+    await createdUser.update(
+      {
+        password_action_version: nextPasswordActionVersion,
+      },
+      { transaction }
+    );
+
     const setupLink = buildPasswordActionLink(createdUser, "set_password");
     await sendAccountSetupEmail(
       createdUser.email,

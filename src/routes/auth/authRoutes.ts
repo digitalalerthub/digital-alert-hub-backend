@@ -1,12 +1,16 @@
 import { Router } from "express";
 import {
+  exchangeGoogleCode,
+  getSession,
   register,
   login,
+  logout,
   forgotPassword,
   resetPassword,
   verifyAccount,
   resendVerificationEmail,
 } from "../../controllers/auth/authController";
+import { verifyToken } from "../../middleware/authMiddleware";
 import {
   forgotPasswordRateLimiter,
   loginRateLimiter,
@@ -22,6 +26,9 @@ const router = Router(); //Crea un router independiente.
 
 router.post("/register", registerRateLimiter, asyncHandler(register));
 router.post("/login", loginRateLimiter, asyncHandler(login));
+router.post("/google/exchange", asyncHandler(exchangeGoogleCode));
+router.get("/session", verifyToken, asyncHandler(getSession));
+router.post("/logout", asyncHandler(logout));
 router.post("/forgot-password", forgotPasswordRateLimiter, asyncHandler(forgotPassword));
 router.post(
   "/resend-verification",

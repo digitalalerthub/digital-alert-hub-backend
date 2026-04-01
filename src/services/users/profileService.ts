@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { sequelize } from "../../config/db";
 import Alert from "../../models/alerts/Alert";
+import AlertReaction from "../../models/alerts/AlertReaction";
+import Comment from "../../models/alerts/Comment";
 import User from "../../models/users/User";
 import { AppError } from "../../utils/appError";
 import {
@@ -106,16 +108,18 @@ export const changeUserPassword = async (
     throw new AppError(400, "La nueva contrasena es requerida");
   }
 
+  if (!currentPassword) {
+    throw new AppError(400, "La contrasena actual es requerida");
+  }
+
   const passwordError = validatePassword(newPassword);
   if (passwordError) {
     throw new AppError(400, passwordError);
   }
 
-  if (currentPassword) {
-    const isValid = await bcrypt.compare(currentPassword, user.contrasena);
-    if (!isValid) {
-      throw new AppError(400, "La contrasena actual es incorrecta");
-    }
+  const isValid = await bcrypt.compare(currentPassword, user.contrasena);
+  if (!isValid) {
+    throw new AppError(400, "La contrasena actual es incorrecta");
   }
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -135,6 +139,17 @@ export const deleteOwnAccount = async (requestUser: unknown) => {
         paranoid: false,
       }
     );
+
+    await AlertReaction.destroy({
+      where: { id_usuario: userId },
+      transaction,
+    });
+
+    await Comment.destroy({
+      where: { id_usuario: userId },
+      transaction,
+      force: true,
+    });
 
     await user.destroy({ transaction });
   });

@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import passport from 'passport';
 import '../../config/googleStrategy';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import Usuario from '../../models/users/User';
 import { resolveFrontendBaseUrl } from '../../services/auth/authLinkService';
-import { getRoleNameForToken, resolveRoleIdByCanonicalName } from '../../utils/roleUtils';
+import { issueGoogleCallbackCode } from '../../services/auth/authService';
+import { resolveRoleIdByCanonicalName } from '../../utils/roleUtils';
 
 const router = Router();
 
@@ -73,26 +73,8 @@ router.get('/google/callback', passport.authenticate('google', { session: false 
             await user.update({ email_verificado: true });
         }
 
-        const roleName = await getRoleNameForToken(user.id_rol);
-        if (!roleName) {
-            return res.status(500).json({
-                message: 'El rol del usuario no esta configurado en la base de datos',
-            });
-        }
-
-        const token = jwt.sign(
-            {
-                id: user.id_usuario,
-                email: user.email,
-                rol: user.id_rol,
-                role_name: roleName,
-            },
-            process.env.JWT_SECRET!,
-            { expiresIn: '8h' },
-        );
-
-        // Redirigir al callback del frontend con el token
-        res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+        const code = await issueGoogleCallbackCode(user);
+        res.redirect(`${frontendUrl}/auth/callback?code=${encodeURIComponent(code)}`);
     } catch (error) {
         console.error('Error en Google callback:', error);
         res.status(500).json({ message: 'Error autenticando con Google' });
