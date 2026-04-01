@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { buildOpenApiDocument } from "../../docs/openapi";
+import { SWAGGER_DOCS_CONTENT_SECURITY_POLICY } from "../../middleware/securityHeadersMiddleware";
 
 const router = Router();
 
@@ -8,6 +9,7 @@ router.get("/openapi.json", (_req, res) => {
 });
 
 router.get("/", (_req, res) => {
+  res.setHeader("Content-Security-Policy", SWAGGER_DOCS_CONTENT_SECURITY_POLICY);
   res.type("html").send(`<!DOCTYPE html>
 <html lang="es">
   <head>

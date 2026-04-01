@@ -11,6 +11,9 @@ interface UsuarioAttributes {
   telefono?: string | null;
   estado: boolean;
   email_verificado: boolean;
+  password_action_version: number;
+  oauth_login_version: number;
+  session_version: number;
   intentos_fallidos: number;
   bloqueo_hasta?: Date | null;
   created_at?: Date;
@@ -20,7 +23,12 @@ interface UsuarioAttributes {
 
 type UsuarioCreationAttributes = Optional<
   UsuarioAttributes,
-  "id_usuario" | "intentos_fallidos" | "bloqueo_hasta"
+  | "id_usuario"
+  | "password_action_version"
+  | "oauth_login_version"
+  | "session_version"
+  | "intentos_fallidos"
+  | "bloqueo_hasta"
 >;
 
 class Usuario
@@ -36,6 +44,9 @@ class Usuario
   public telefono?: string | null;
   public estado!: boolean;
   public email_verificado!: boolean;
+  public password_action_version!: number;
+  public oauth_login_version!: number;
+  public session_version!: number;
   public intentos_fallidos!: number;
   public bloqueo_hasta?: Date | null;
   public readonly created_at!: Date;
@@ -87,6 +98,21 @@ Usuario.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    password_action_version: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    oauth_login_version: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    session_version: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
     intentos_fallidos: {
       type: DataTypes.INTEGER,

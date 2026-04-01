@@ -15,6 +15,7 @@ type PasswordActionPayload = {
   id: number;
   email: string;
   type: PasswordActionType;
+  version: number;
 };
 
 const signToken = (
@@ -50,7 +51,7 @@ export const buildVerificationLink = (
 };
 
 export const buildPasswordActionLink = (
-  user: Pick<Usuario, "id_usuario" | "email">,
+  user: Pick<Usuario, "id_usuario" | "email" | "password_action_version">,
   type: PasswordActionType
 ): string => {
   const frontendUrl = resolveFrontendBaseUrl();
@@ -59,7 +60,12 @@ export const buildPasswordActionLink = (
   }
 
   const actionToken = signToken(
-    { id: user.id_usuario, email: user.email, type },
+    {
+      id: user.id_usuario,
+      email: user.email,
+      type,
+      version: user.password_action_version ?? 0,
+    },
     type === "set_password" ? "24h" : "15m"
   );
 

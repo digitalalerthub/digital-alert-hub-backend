@@ -2,8 +2,25 @@
 Backend de la aplicacion web **Digital Alert Hub**
 
 ## Documentacion clave
-- Setup completo de activacion de cuenta y recuperacion de contrasena:
-  - `README_ACCOUNT_ACTIVATION_AND_PASSWORD_RECOVERY.md`
+- Indice de documentacion canonica:
+  - `docs/README.md`
+- Informe de seguridad:
+  - `docs/SECURITY_REPORT.md`
+- Despliegue:
+  - `docs/DEPLOYMENT_DOCUMENTATION.md`
+- Activacion de cuenta y recuperacion de contrasena:
+  - `docs/ACCOUNT_ACTIVATION_AND_PASSWORD_RECOVERY.md`
+- Modulo de reportes:
+  - `docs/REPORTES_IMPLEMENTACION.md`
+- Guia de pruebas:
+  - `docs/TESTING_GUIDE.md`
+
+## Documentacion relacionada
+
+- Frontend del proyecto:
+  - `../digital-alert-hub-frontend/README.md`
+- Indice tecnico del frontend:
+  - `../digital-alert-hub-frontend/docs/README.md`
 
 Este proyecto provee la API REST y la logica del lado del servidor para **Digital Alert Hub**, un sistema de alertas comunitarias que conecta a los ciudadanos, Juntas de Accion Comunal (JAC) y alcaldias para reportar y gestionar problemas locales como riesgos de deslizamiento, deterioro de vias o fallas en servicios publicos.
 
