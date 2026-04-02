@@ -54,6 +54,12 @@ interface GoogleCallbackCodePayload {
   version: number;
 }
 
+type ResolvedPasswordActionToken = {
+  user: User;
+  tokenType: "password_reset" | "set_password";
+  tokenVersion: number;
+};
+
 const parsePositiveInteger = (
   value: string | undefined,
   fallback: number
@@ -77,6 +83,97 @@ const GENERIC_FORGOT_PASSWORD_MESSAGE =
   "Si el correo existe, enviaremos instrucciones de recuperacion.";
 const GENERIC_GOOGLE_CODE_ERROR_MESSAGE =
   "Codigo de autenticacion invalido o expirado.";
+
+const formatRetryAfter = (retryAfterSeconds: number): string => {
+  if (retryAfterSeconds < 60) {
+    return retryAfterSeconds === 1
+      ? "1 segundo"
+      : `${retryAfterSeconds} segundos`;
+  }
+
+  const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+  return retryAfterMinutes === 1
+    ? "1 minuto"
+    : `${retryAfterMinutes} minutos`;
+};
+
+const buildLockedLoginError = (lockedUntil: Date) => {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((lockedUntil.getTime() - Date.now()) / 1000)
+  );
+
+  return new AppError(
+    401,
+    `Cuenta bloqueada temporalmente. Intenta nuevamente en ${formatRetryAfter(
+      retryAfterSeconds
+    )}.`,
+    {
+      attempts_remaining: 0,
+      retry_after_seconds: retryAfterSeconds,
+      locked_until: lockedUntil.toISOString(),
+    }
+  );
+};
+
+const buildInvalidCredentialsError = (attemptsRemaining: number) =>
+  new AppError(
+    401,
+    attemptsRemaining === 1
+      ? "Credenciales invalidas. Te queda 1 intento antes del bloqueo temporal."
+      : `Credenciales invalidas. Te quedan ${attemptsRemaining} intentos antes del bloqueo temporal.`,
+    {
+      attempts_remaining: attemptsRemaining,
+      max_login_attempts: MAX_LOGIN_ATTEMPTS,
+    }
+  );
+
+const resolvePasswordActionTokenOrThrow = async (
+  token: string
+): Promise<ResolvedPasswordActionToken> => {
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string
+    ) as PasswordActionPayload;
+
+    const tokenType =
+      decoded.type === "set_password" ? "set_password" : "password_reset";
+    const user = await User.findByPk(decoded.id);
+
+    if (!user) {
+      throw new AppError(404, "Usuario no encontrado");
+    }
+
+    if (user.email !== decoded.email) {
+      throw new AppError(400, "Token invalido o expirado");
+    }
+
+    const tokenVersion =
+      Number.isInteger(decoded.version) && decoded.version !== undefined
+        ? decoded.version
+        : 0;
+
+    if ((user.password_action_version ?? 0) !== tokenVersion) {
+      throw new AppError(
+        400,
+        "Este enlace ya fue usado o fue reemplazado por uno mas reciente"
+      );
+    }
+
+    return {
+      user,
+      tokenType,
+      tokenVersion,
+    };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(400, "Token invalido o expirado");
+  }
+};
 
 const resolveSessionData = async (
   user: Pick<User, "id_usuario" | "email" | "id_rol" | "session_version">
@@ -251,7 +348,7 @@ export const loginUser = async (
 
   const now = new Date();
   if (user.bloqueo_hasta && user.bloqueo_hasta > now) {
-    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
+    throw buildLockedLoginError(user.bloqueo_hasta);
   }
 
   if (user.bloqueo_hasta && user.bloqueo_hasta <= now) {
@@ -271,7 +368,7 @@ export const loginUser = async (
         intentos_fallidos: 0,
         bloqueo_hasta: lockedUntil,
       });
-      throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
+      throw buildLockedLoginError(lockedUntil);
     }
 
     await user.update({
@@ -279,7 +376,7 @@ export const loginUser = async (
       bloqueo_hasta: null,
     });
 
-    throw new AppError(401, GENERIC_LOGIN_ERROR_MESSAGE);
+    throw buildInvalidCredentialsError(MAX_LOGIN_ATTEMPTS - nextFailedAttempts);
   }
 
   if (user.intentos_fallidos !== 0 || user.bloqueo_hasta) {
@@ -484,6 +581,15 @@ export const resendUserVerificationEmail = async (
   };
 };
 
+export const validateResetPasswordToken = async (token: string) => {
+  const { tokenType } = await resolvePasswordActionTokenOrThrow(token);
+
+  return {
+    message: "Token valido",
+    action: tokenType,
+  };
+};
+
 export const resetUserPassword = async (
   req: Request,
   token: string,
@@ -493,34 +599,8 @@ export const resetUserPassword = async (
     typeof payload.nuevaContrasena === "string" ? payload.nuevaContrasena.trim() : "";
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as PasswordActionPayload;
-
-    const tokenType =
-      decoded.type === "set_password" ? "set_password" : "password_reset";
-    const user = await User.findByPk(decoded.id);
-
-    if (!user) {
-      throw new AppError(404, "Usuario no encontrado");
-    }
-
-    if (user.email !== decoded.email) {
-      throw new AppError(400, "Token invalido o expirado");
-    }
-
-    const tokenVersion =
-      Number.isInteger(decoded.version) && decoded.version !== undefined
-        ? decoded.version
-        : 0;
-
-    if ((user.password_action_version ?? 0) !== tokenVersion) {
-      throw new AppError(
-        400,
-        "Este enlace ya fue usado o fue reemplazado por uno mas reciente"
-      );
-    }
+    const { user, tokenType, tokenVersion } =
+      await resolvePasswordActionTokenOrThrow(token);
 
     await validateRecaptchaOrThrow(
       req,

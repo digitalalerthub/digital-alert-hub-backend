@@ -7,6 +7,7 @@ import {
   logout,
   forgotPassword,
   resetPassword,
+  validateResetPassword,
   verifyAccount,
   resendVerificationEmail,
 } from "../../controllers/auth/authController";
@@ -35,6 +36,7 @@ router.post(
   resendVerificationRateLimiter,
   asyncHandler(resendVerificationEmail)
 );
+router.get("/reset-password/:token", asyncHandler(validateResetPassword));
 router.post("/reset-password/:token", resetPasswordRateLimiter, asyncHandler(resetPassword));
 router.get("/verify-account/:token", asyncHandler(verifyAccount));
 

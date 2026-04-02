@@ -19,16 +19,19 @@ import docsRoutes from "./routes/docs/docsRoutes";
 import {
   isAllowedCorsOrigin,
   isApiDocsEnabled,
+  resolveRequestBodyLimit,
   resolveAllowedCorsOrigins,
 } from "./config/securityConfig";
 import { csrfOriginProtection } from "./middleware/csrfProtectionMiddleware";
 import { errorHandler } from "./middleware/errorHandler";
+import { applyRequestObservability } from "./middleware/requestObservabilityMiddleware";
 import { applySecurityHeaders } from "./middleware/securityHeadersMiddleware";
 
 import authGoogleRoutes from "./routes/auth/authGoogle";
 import "./config/googleStrategy";
 
 const app: Application = express();
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
 const allowedCorsOrigins = resolveAllowedCorsOrigins();
@@ -46,8 +49,10 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(applyRequestObservability);
 app.use(applySecurityHeaders);
-app.use(express.json());
+app.use(express.json({ limit: resolveRequestBodyLimit() }));
+app.use(express.urlencoded({ extended: false, limit: resolveRequestBodyLimit() }));
 app.use(passport.initialize());
 app.use(csrfOriginProtection);
 

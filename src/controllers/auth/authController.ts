@@ -6,6 +6,7 @@ import {
   resendUserVerificationEmail,
   resetUserPassword,
   sendPasswordReset,
+  validateResetPasswordToken,
   verifyUserAccount,
 } from "../../services/auth/authService";
 import {
@@ -115,5 +116,13 @@ export const resetPassword = async (
     nuevaContrasena: req.body?.nuevaContrasena,
     captchaToken: req.body?.captchaToken,
   });
+  res.json(result);
+};
+
+export const validateResetPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const result = await validateResetPasswordToken(req.params.token);
   res.json(result);
 };

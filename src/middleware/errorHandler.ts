@@ -8,7 +8,10 @@ export const errorHandler = (
   _next: NextFunction
 ) => {
   if (isAppError(error)) {
-    return res.status(error.statusCode).json({ message: error.message });
+    return res.status(error.statusCode).json({
+      message: error.message,
+      ...(error.details ?? {}),
+    });
   }
 
   console.error("Unhandled error:", error);

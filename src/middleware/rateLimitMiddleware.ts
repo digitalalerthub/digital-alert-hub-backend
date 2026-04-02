@@ -101,7 +101,7 @@ const authRateLimitWindowMs = parsePositiveInteger(
 export const loginRateLimiter = createIpRateLimiter({
   windowMs: authRateLimitWindowMs,
   max: parsePositiveInteger(process.env.AUTH_LOGIN_RATE_LIMIT_MAX, 10),
-  message: "Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.",
+  message: "Demasiados intentos de inicio de sesion. Intenta nuevamente en 5 minutos.",
   keyPrefix: "auth-login",
 });
 

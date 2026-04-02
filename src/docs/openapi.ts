@@ -194,6 +194,22 @@ export const buildOpenApiDocument = () => ({
       },
     },
     "/api/auth/reset-password/{token}": {
+      get: {
+        tags: ["Auth"],
+        summary: "Validar token de restablecimiento o activacion",
+        parameters: [
+          {
+            name: "token",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": { description: "Token valido" },
+          "400": { description: "Token invalido, expirado o ya usado" },
+        },
+      },
       post: {
         tags: ["Auth"],
         summary: "Restablecer o definir contrasena",
