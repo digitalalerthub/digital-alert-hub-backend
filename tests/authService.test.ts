@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindOne = vi.fn();
 const mockCreate = vi.fn();
@@ -60,6 +60,15 @@ vi.mock("jsonwebtoken", () => ({
 describe("authService security flows", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
+    process.env.AUTH_MAX_LOGIN_ATTEMPTS = "5";
+    process.env.AUTH_LOGIN_LOCK_MINUTES = "5";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete process.env.AUTH_MAX_LOGIN_ATTEMPTS;
+    delete process.env.AUTH_LOGIN_LOCK_MINUTES;
   });
 
   it("ignora id_rol enviado en el registro publico y usa el rol ciudadano", async () => {
@@ -154,7 +163,7 @@ describe("authService security flows", () => {
     expect(mockSendPasswordResetEmail).not.toHaveBeenCalled();
   });
 
-  it("usa un mensaje generico para evitar enumeracion en login", async () => {
+  it("informa cuantos intentos quedan antes del bloqueo al fallar el login", async () => {
     const update = vi.fn().mockResolvedValue(undefined);
     mockFindOne.mockResolvedValue({
       contrasena: "stored-hash",
@@ -175,12 +184,134 @@ describe("authService security flows", () => {
       })
     ).rejects.toMatchObject({
       statusCode: 401,
-      message: "Credenciales invalidas o cuenta no disponible.",
+      message:
+        "Credenciales invalidas. Te quedan 4 intentos antes del bloqueo temporal.",
+      details: {
+        attempts_remaining: 4,
+        max_login_attempts: 5,
+      },
     });
 
     expect(update).toHaveBeenCalledWith({
       intentos_fallidos: 1,
       bloqueo_hasta: null,
+    });
+  });
+
+  it("informa el tiempo de desbloqueo cuando la cuenta queda bloqueada", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-02T15:00:00.000Z"));
+
+    const update = vi.fn().mockResolvedValue(undefined);
+    mockFindOne.mockResolvedValue({
+      contrasena: "stored-hash",
+      intentos_fallidos: 4,
+      bloqueo_hasta: null,
+      update,
+    });
+    mockCompare.mockResolvedValue(false);
+
+    const { loginUser } = await import("../src/services/auth/authService");
+    const req = { ip: "127.0.0.1" } as any;
+
+    await expect(
+      loginUser(req, {
+        email: "ana@test.com",
+        contrasena: "clave-invalida",
+        captchaToken: "captcha-login",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      message:
+        "Cuenta bloqueada temporalmente. Intenta nuevamente en 5 minutos.",
+      details: {
+        attempts_remaining: 0,
+        retry_after_seconds: 300,
+        locked_until: "2026-04-02T15:05:00.000Z",
+      },
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      intentos_fallidos: 0,
+      bloqueo_hasta: new Date("2026-04-02T15:05:00.000Z"),
+    });
+  });
+
+  it("informa cuanto tiempo falta cuando el usuario ya esta bloqueado", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-02T15:00:00.000Z"));
+
+    const blockedUntil = new Date("2026-04-02T15:03:00.000Z");
+    mockFindOne.mockResolvedValue({
+      contrasena: "stored-hash",
+      intentos_fallidos: 0,
+      bloqueo_hasta: blockedUntil,
+    });
+
+    const { loginUser } = await import("../src/services/auth/authService");
+    const req = { ip: "127.0.0.1" } as any;
+
+    await expect(
+      loginUser(req, {
+        email: "ana@test.com",
+        contrasena: "clave-invalida",
+        captchaToken: "captcha-login",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      message:
+        "Cuenta bloqueada temporalmente. Intenta nuevamente en 3 minutos.",
+      details: {
+        attempts_remaining: 0,
+        retry_after_seconds: 180,
+        locked_until: "2026-04-02T15:03:00.000Z",
+      },
+    });
+
+    expect(mockCompare).not.toHaveBeenCalled();
+  });
+
+  it("valida un token vigente antes de mostrar el formulario de contrasena", async () => {
+    mockJwtVerify.mockReturnValue({
+      id: 15,
+      email: "ana@test.com",
+      type: "password_reset",
+      version: 2,
+    });
+    mockFindByPk.mockResolvedValue({
+      email: "ana@test.com",
+      password_action_version: 2,
+    });
+
+    const { validateResetPasswordToken } = await import(
+      "../src/services/auth/authService"
+    );
+
+    await expect(validateResetPasswordToken("token-123")).resolves.toMatchObject({
+      message: "Token valido",
+      action: "password_reset",
+    });
+  });
+
+  it("rechaza un token usado antes de mostrar el formulario", async () => {
+    mockJwtVerify.mockReturnValue({
+      id: 15,
+      email: "ana@test.com",
+      type: "password_reset",
+      version: 2,
+    });
+    mockFindByPk.mockResolvedValue({
+      email: "ana@test.com",
+      password_action_version: 3,
+    });
+
+    const { validateResetPasswordToken } = await import(
+      "../src/services/auth/authService"
+    );
+
+    await expect(validateResetPasswordToken("token-123")).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Este enlace ya fue usado o fue reemplazado por uno mas reciente",
     });
   });
 
