@@ -77,6 +77,8 @@ describe('createUserFromAdmin', () => {
     });
 
     it('crea el usuario y envia correo de activacion', async () => {
+        const mockCreatedUserUpdate = vi.fn().mockResolvedValue(undefined);
+
         mockFindOne.mockResolvedValue(null);
         mockResolveRoleId.mockResolvedValue(2);
         mockHash.mockResolvedValue('hashed-password');
@@ -97,6 +99,8 @@ describe('createUserFromAdmin', () => {
             email: 'andres@test.com',
             id_rol: 1,
             estado: false,
+            password_action_version: 0,
+            update: mockCreatedUserUpdate,
         });
 
         const { createUserFromAdmin } = await import(
@@ -134,6 +138,12 @@ describe('createUserFromAdmin', () => {
             'andres@test.com',
             'Andres',
             'http://frontend.test/activar',
+        );
+        expect(mockCreatedUserUpdate).toHaveBeenCalledWith(
+            {
+                password_action_version: 1,
+            },
+            { transaction: 'mock-transaction' },
         );
         expect(result.user).toMatchObject({
             id_usuario: 10,

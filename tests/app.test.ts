@@ -4,7 +4,10 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
     isAllowedCorsOrigin,
     isApiDocsEnabled,
+    isResponseTimingEnabled,
+    resolveRequestBodyLimit,
     resolveAllowedCorsOrigins,
+    resolveSlowRequestThresholdMs,
 } from '../src/config/securityConfig';
 
 let app: Application;
@@ -32,8 +35,13 @@ describe('app health endpoints', () => {
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({ status: 'ok' });
+        expect(response.headers['x-powered-by']).toBeUndefined();
         expect(response.headers['x-content-type-options']).toBe('nosniff');
         expect(response.headers['x-frame-options']).toBe('DENY');
+        expect(response.headers['referrer-policy']).toBe('no-referrer');
+        expect(response.headers['permissions-policy']).toContain('camera=()');
+        expect(response.headers['server-timing']).toContain('app;dur=');
+        expect(response.headers['x-response-time']).toMatch(/ms$/);
         expect(response.headers['content-security-policy']).toContain(
             "default-src 'none'",
         );
@@ -118,6 +126,32 @@ describe('securityConfig', () => {
 
         process.env.NODE_ENV = previousNodeEnv;
         process.env.API_DOCS_ENABLED = previousDocsEnabled;
+    });
+
+    it('resuelve limites defensivos y observabilidad por defecto', () => {
+        const previousBodyLimit = process.env.REQUEST_BODY_LIMIT;
+        const previousSlowThreshold = process.env.SLOW_REQUEST_THRESHOLD_MS;
+        const previousTimingEnabled = process.env.RESPONSE_TIMING_ENABLED;
+
+        delete process.env.REQUEST_BODY_LIMIT;
+        delete process.env.SLOW_REQUEST_THRESHOLD_MS;
+        delete process.env.RESPONSE_TIMING_ENABLED;
+
+        expect(resolveRequestBodyLimit()).toBe('100kb');
+        expect(resolveSlowRequestThresholdMs()).toBe(1000);
+        expect(isResponseTimingEnabled()).toBe(true);
+
+        process.env.REQUEST_BODY_LIMIT = '256kb';
+        process.env.SLOW_REQUEST_THRESHOLD_MS = '2500';
+        process.env.RESPONSE_TIMING_ENABLED = 'false';
+
+        expect(resolveRequestBodyLimit()).toBe('256kb');
+        expect(resolveSlowRequestThresholdMs()).toBe(2500);
+        expect(isResponseTimingEnabled()).toBe(false);
+
+        process.env.REQUEST_BODY_LIMIT = previousBodyLimit;
+        process.env.SLOW_REQUEST_THRESHOLD_MS = previousSlowThreshold;
+        process.env.RESPONSE_TIMING_ENABLED = previousTimingEnabled;
     });
 
     it('valida origenes permitidos y bloqueados', () => {

@@ -10,6 +10,9 @@ const parseBoolean = (value: string | undefined): boolean | null => {
 const normalizeOrigin = (value: string): string =>
   value.trim().replace(/\/+$/, "");
 
+const DEFAULT_REQUEST_BODY_LIMIT = "100kb";
+const DEFAULT_SLOW_REQUEST_THRESHOLD_MS = 1000;
+
 export const resolveAllowedCorsOrigins = (): string[] => {
   const rawOrigins = [
     process.env.FRONTEND_URL,
@@ -49,4 +52,28 @@ export const isApiDocsEnabled = (): boolean => {
   }
 
   return process.env.NODE_ENV !== "production";
+};
+
+export const resolveRequestBodyLimit = (): string => {
+  const configuredLimit = process.env.REQUEST_BODY_LIMIT?.trim();
+  return configuredLimit || DEFAULT_REQUEST_BODY_LIMIT;
+};
+
+export const resolveSlowRequestThresholdMs = (): number => {
+  const configuredThreshold = Number(process.env.SLOW_REQUEST_THRESHOLD_MS);
+
+  if (Number.isFinite(configuredThreshold) && configuredThreshold > 0) {
+    return configuredThreshold;
+  }
+
+  return DEFAULT_SLOW_REQUEST_THRESHOLD_MS;
+};
+
+export const isResponseTimingEnabled = (): boolean => {
+  const explicitValue = parseBoolean(process.env.RESPONSE_TIMING_ENABLED);
+  if (explicitValue !== null) {
+    return explicitValue;
+  }
+
+  return true;
 };

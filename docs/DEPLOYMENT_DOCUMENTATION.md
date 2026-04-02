@@ -49,6 +49,9 @@ GOOGLE_CALLBACK_URL=
 FRONTEND_URL=
 FRONTEND_URLS=
 API_DOCS_ENABLED=
+REQUEST_BODY_LIMIT=
+SLOW_REQUEST_THRESHOLD_MS=
+RESPONSE_TIMING_ENABLED=
 GOOGLE_GMAIL_CLIENT_ID=
 GOOGLE_GMAIL_CLIENT_SECRET=
 GOOGLE_GMAIL_REFRESH_TOKEN=
@@ -260,3 +263,83 @@ Despues de cada despliegue productivo, el equipo debe validar al menos:
 - y permisos de rutas protegidas.
 
 Sin ese paso, un deploy "verde" puede igual dejar una regresion funcional o de seguridad.
+
+## 13. Pipeline recomendado con GitHub Actions y Render
+
+El repositorio incluye un workflow en `.github/workflows/backend-ci-render.yml` con este flujo:
+
+1. `npm ci`
+2. `npm test`
+3. `npm run build`
+4. trigger del deploy en Render por deploy hook
+5. smoke test contra el backend desplegado
+
+### Secretos y variables requeridos en GitHub
+
+- Secret: `RENDER_DEPLOY_HOOK_URL`
+- Variable: `RENDER_SERVICE_URL`
+
+Ejemplo de `RENDER_SERVICE_URL`:
+
+```env
+RENDER_SERVICE_URL=https://digital-alert-hub-backend.onrender.com
+```
+
+### Comportamiento del smoke test
+
+El smoke test espera que en produccion:
+
+- `GET /health` responda `200` con `{ "status": "ok" }`
+- `GET /` contenga `API DigitalAlertHub activa`
+- `GET /api/docs` responda `404` mientras `API_DOCS_ENABLED=false`
+- `GET /health` exponga headers de seguridad y temporizacion (`CSP`, `nosniff`, `DENY`, `Server-Timing`, `X-Response-Time`)
+
+Si alguna de esas validaciones falla, el workflow marca el despliegue como fallido.
+
+### Ajuste de rama de CI y despliegue
+
+El workflow hace CI en `dev` y `main`, pero solo dispara deploy automatico desde `main`.
+
+Si Render publica otra rama, ajusta el `push.branches` y la condicion de los jobs `deploy_render` y `smoke_tests` en el workflow.
+
+```yaml
+on:
+  push:
+    branches:
+      - dev
+      - main
+```
+
+### Comando local equivalente
+
+Si necesitas ejecutar el smoke test manualmente contra un deploy ya publicado:
+
+```bash
+DEPLOYED_BACKEND_URL=https://digital-alert-hub-backend.onrender.com npm run smoke:deploy
+```
+
+### Guardia manual de rendimiento
+
+El mismo workflow permite lanzar un benchmark manual desde `workflow_dispatch`.
+
+Parametros disponibles:
+
+- `run_performance_guard`
+- `performance_samples`
+- `performance_p95_threshold_ms`
+- `performance_mean_threshold_ms`
+
+Comando local equivalente:
+
+```bash
+DEPLOYED_BACKEND_URL=https://digital-alert-hub-backend.onrender.com npm run benchmark:deploy
+```
+
+Variables opcionales:
+
+```bash
+PERF_SAMPLES=20
+PERF_P95_THRESHOLD_MS=800
+PERF_MEAN_THRESHOLD_MS=400
+PERF_ENDPOINTS=/health,/
+```

@@ -145,6 +145,9 @@ CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz12345
 
 # Frontend
 FRONTEND_URL=http://localhost:5173
+REQUEST_BODY_LIMIT=100kb
+SLOW_REQUEST_THRESHOLD_MS=1000
+RESPONSE_TIMING_ENABLED=true
 
 # Rate limiting de autenticacion
 AUTH_RATE_LIMIT_WINDOW_MS=900000
@@ -256,6 +259,8 @@ const transporter = nodemailer.createTransport({
 | `npm run dev` | Ejecuta el servidor en modo desarrollo (con Nodemon) |
 | `npm run build` | Compila el codigo TypeScript a JavaScript |
 | `npm start` | Ejecuta el servidor en produccion |
+| `npm run smoke:deploy` | Valida headers, salud y docs sobre un backend desplegado |
+| `npm run benchmark:deploy` | Ejecuta benchmark simple con umbrales sobre un backend desplegado |
 
 ---
 
