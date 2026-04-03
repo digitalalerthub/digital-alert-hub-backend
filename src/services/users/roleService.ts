@@ -2,6 +2,7 @@ import { ForeignKeyConstraintError } from "sequelize";
 import Role from "../../models/users/Role";
 import User from "../../models/users/User";
 import { AppError } from "../../utils/appError";
+import { normalizeRoleName } from "../../utils/roleUtils";
 
 type RoleUsage = {
   id_rol: number;
@@ -13,6 +14,24 @@ const countAssignedUsers = async (roleId: number) =>
   User.count({
     where: { id_rol: roleId },
   });
+
+const formatRoleNameForStorage = (value: string): string => {
+  const trimmedValue = value.trim().replace(/\s+/g, " ").toLowerCase();
+  return trimmedValue.charAt(0).toUpperCase() + trimmedValue.slice(1);
+};
+
+const findRoleByNormalizedName = async (roleName: string) => {
+  const normalizedRoleName = normalizeRoleName(roleName);
+  const roles = await Role.findAll({
+    attributes: ["id_rol", "nombre_rol"],
+  });
+
+  return (
+    roles.find(
+      (role) => normalizeRoleName(role.nombre_rol) === normalizedRoleName
+    ) ?? null
+  );
+};
 
 export const listRolesWithUsage = async (): Promise<RoleUsage[]> => {
   const roles = await Role.findAll({
@@ -46,7 +65,12 @@ export const createRole = async (roleName: unknown) => {
     throw new AppError(400, "Nombre requerido");
   }
 
-  return Role.create({ nombre_rol: roleName.trim() });
+  const existingRole = await findRoleByNormalizedName(roleName);
+  if (existingRole) {
+    throw new AppError(409, "El rol ya existe");
+  }
+
+  return Role.create({ nombre_rol: formatRoleNameForStorage(roleName) });
 };
 
 export const updateRole = async (roleIdParam: string, roleName: unknown) => {
@@ -64,7 +88,12 @@ export const updateRole = async (roleIdParam: string, roleName: unknown) => {
     throw new AppError(404, "Rol no encontrado");
   }
 
-  role.nombre_rol = roleName.trim();
+  const existingRole = await findRoleByNormalizedName(roleName);
+  if (existingRole && existingRole.id_rol !== role.id_rol) {
+    throw new AppError(409, "El rol ya existe");
+  }
+
+  role.nombre_rol = formatRoleNameForStorage(roleName);
   await role.save();
   return role;
 };
