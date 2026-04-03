@@ -37,4 +37,38 @@ describe("createIpRateLimiter", () => {
     expect(response.headers["x-ratelimit-remaining"]).toBe("0");
     expect(response.headers["retry-after"]).toBeTruthy();
   });
+
+  it("en login separa el rate limit por correo dentro de la misma IP", async () => {
+    const app = express();
+    app.use(express.json());
+
+    const { loginRateLimiter } = await import("../src/middleware/rateLimitMiddleware");
+
+    app.post("/login", loginRateLimiter, (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    const client = request(app);
+    const ipAddress = "203.0.113.25";
+
+    for (let index = 0; index < 10; index += 1) {
+      await client
+        .post("/login")
+        .set("X-Forwarded-For", ipAddress)
+        .send({ email: "cuenta1@test.com" });
+    }
+
+    const blockedResponse = await client
+      .post("/login")
+      .set("X-Forwarded-For", ipAddress)
+      .send({ email: "cuenta1@test.com" });
+
+    const otherAccountResponse = await client
+      .post("/login")
+      .set("X-Forwarded-For", ipAddress)
+      .send({ email: "cuenta2@test.com" });
+
+    expect(blockedResponse.status).toBe(429);
+    expect(otherAccountResponse.status).toBe(200);
+  });
 });

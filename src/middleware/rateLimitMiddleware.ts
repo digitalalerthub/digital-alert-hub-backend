@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { normalizeEmail } from "../utils/userValidation";
 
 type RateLimitBucket = {
   count: number;
@@ -10,6 +11,7 @@ type IpRateLimiterOptions = {
   max: number;
   message: string;
   keyPrefix: string;
+  keyResolver?: (req: Request, clientIp: string) => string;
 };
 
 const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
@@ -51,6 +53,7 @@ export const createIpRateLimiter = ({
   max,
   message,
   keyPrefix,
+  keyResolver,
 }: IpRateLimiterOptions) => {
   const bucketWindowMs = windowMs > 0 ? windowMs : DEFAULT_WINDOW_MS;
   const bucketMax = max > 0 ? max : DEFAULT_MAX_REQUESTS;
@@ -59,7 +62,11 @@ export const createIpRateLimiter = ({
   return (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
     const clientIp = getClientIp(req);
-    const bucketKey = `${keyPrefix}:${clientIp}`;
+    const resolvedKey =
+      typeof keyResolver === "function"
+        ? keyResolver(req, clientIp)
+        : clientIp;
+    const bucketKey = `${keyPrefix}:${resolvedKey}`;
     const currentBucket = buckets.get(bucketKey);
 
     if (!currentBucket || currentBucket.resetAt <= now) {
@@ -101,8 +108,12 @@ const authRateLimitWindowMs = parsePositiveInteger(
 export const loginRateLimiter = createIpRateLimiter({
   windowMs: authRateLimitWindowMs,
   max: parsePositiveInteger(process.env.AUTH_LOGIN_RATE_LIMIT_MAX, 10),
-  message: "Demasiados intentos de inicio de sesion. Intenta nuevamente en 5 minutos.",
+  message: "Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.",
   keyPrefix: "auth-login",
+  keyResolver: (req, clientIp) => {
+    const email = normalizeEmail(req.body?.email);
+    return `${clientIp}:${email || "without-email"}`;
+  },
 });
 
 export const registerRateLimiter = createIpRateLimiter({

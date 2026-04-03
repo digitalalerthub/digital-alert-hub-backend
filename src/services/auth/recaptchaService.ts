@@ -36,7 +36,7 @@ export const getRecaptchaMinScore = (): number => {
   if (Number.isFinite(rawValue) && rawValue >= 0 && rawValue <= 1) {
     return rawValue;
   }
-  return 0.5;
+  return 0.3;
 };
 
 export const isRecaptchaConfigured = (): boolean =>
