@@ -6,8 +6,8 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-const DEFAULT_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@example.com";
-const DEFAULT_ADMIN_NAME = process.env.SEED_ADMIN_NAME || "Admin";
+const DEFAULT_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "user@example.com";
+const DEFAULT_ADMIN_NAME = process.env.SEED_ADMIN_NAME || "User";
 const DEFAULT_ADMIN_LASTNAME = process.env.SEED_ADMIN_LASTNAME || "Principal";
 const DEFAULT_ADMIN_PHONE = process.env.SEED_ADMIN_PHONE || "3000000000";
 const SAMPLE_ALERT_TITLE = "Alumbrado publico averiado en el parque principal";
