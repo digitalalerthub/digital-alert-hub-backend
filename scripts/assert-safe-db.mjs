@@ -34,7 +34,7 @@ if (!host) {
 }
 
 if (ALLOW_REMOTE_DB) {
-  console.log(`Guard de BD omitido con ALLOW_REMOTE_DB=1 para host: ${host}`);
+  console.log(`Validacion de seguridad omitida con ALLOW_REMOTE_DB=1 para host: ${host}`);
   process.exit(0);
 }
 

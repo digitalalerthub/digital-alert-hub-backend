@@ -357,19 +357,14 @@ module.exports = {
 
       const setupLink = buildSetPasswordLink(adminUser);
       if (setupLink && !adminUser.estado && !adminUser.email_verificado) {
-        console.log("");
-        console.log("Admin bootstrap listo.");
-        console.log(`Email admin sembrado: ${adminUser.email}`);
-        console.log("Usa este enlace para definir la contrasena inicial:");
+        console.log(`Admin bootstrap creado para ${adminUser.email}.`);
+        console.log("Enlace de configuracion inicial de contrasena:");
         console.log(setupLink);
-        console.log("");
       } else if (!setupLink && !adminUser.estado && !adminUser.email_verificado) {
-        console.log("");
         console.log(
           "Admin bootstrap creado, pero no se pudo generar el enlace de activacion porque faltan FRONTEND_URL o JWT_SECRET."
         );
-        console.log(`Email admin sembrado: ${adminUser.email}`);
-        console.log("");
+        console.log(`Cuenta sembrada: ${adminUser.email}`);
       }
     });
   },
