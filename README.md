@@ -12,6 +12,7 @@ Este proyecto expone la API REST y la logica del servidor para gestionar usuario
 - Activacion de cuenta y recuperacion de contrasena: `docs/ACCOUNT_ACTIVATION_AND_PASSWORD_RECOVERY.md`
 - Modulo de reportes: `docs/REPORTES_IMPLEMENTACION.md`
 - Guia de pruebas: `docs/TESTING_GUIDE.md`
+- Coleccion API para Postman/Insomnia: `docs/postman/README.md`
 
 ## Documentacion relacionada
 
@@ -131,8 +132,8 @@ AUTH_MAX_LOGIN_ATTEMPTS=5
 AUTH_LOGIN_LOCK_MINUTES=10
 
 # Bootstrap opcional del admin sembrado
-SEED_ADMIN_EMAIL=admin@example.com
-SEED_ADMIN_NAME=Admin
+SEED_ADMIN_EMAIL=user@example.com
+SEED_ADMIN_NAME=User
 SEED_ADMIN_LASTNAME=Principal
 SEED_ADMIN_PHONE=3000000000
 ```
@@ -209,6 +210,15 @@ Con el backend iniciado:
 
 - UI: `http://localhost:4000/api/docs`
 - JSON: `http://localhost:4000/api/docs/openapi.json`
+
+## Coleccion de pruebas manuales
+
+Se agrego un entregable versionado para pruebas manuales de la API:
+
+- Coleccion Postman: `docs/postman/DigitalAlertHub.postman_collection.json`
+- Environment local: `docs/postman/DigitalAlertHub.local.postman_environment.json`
+
+La coleccion tambien puede importarse en Insomnia y trae variables base para autenticacion, alertas, usuarios, roles, reportes y carga de evidencias.
 
 ## Scripts utiles
 

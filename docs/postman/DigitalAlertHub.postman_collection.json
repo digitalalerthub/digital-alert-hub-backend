@@ -1,0 +1,500 @@
+{
+  "info": {
+    "_postman_id": "0f4d7d44-2b9d-4c12-9b7d-3d72757c1d11",
+    "name": "Digital Alert Hub Backend",
+    "description": "Coleccion base para probar la API del backend Digital Alert Hub desde Postman o importarla en Insomnia.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:4000" },
+    { "key": "auth_token", "value": "" },
+    { "key": "captcha_token", "value": "test-captcha-token" },
+    { "key": "email", "value": "ciudadano@example.com" },
+    { "key": "password", "value": "ClaveSegura123" },
+    { "key": "new_password", "value": "NuevaClaveSegura124" },
+    { "key": "first_name", "value": "Juan" },
+    { "key": "last_name", "value": "Perez" },
+    { "key": "phone", "value": "3001234567" },
+    { "key": "google_callback_code", "value": "reemplazar-google-code" },
+    { "key": "reset_token", "value": "reemplazar-reset-token" },
+    { "key": "verify_token", "value": "reemplazar-verify-token" },
+    { "key": "alert_id", "value": "1" },
+    { "key": "comment_id", "value": "1" },
+    { "key": "user_id", "value": "1" },
+    { "key": "role_id", "value": "1" },
+    { "key": "comuna_id", "value": "1" },
+    { "key": "barrio_id", "value": "1" },
+    { "key": "reaction_id", "value": "1" },
+    { "key": "estado_id", "value": "2" },
+    { "key": "category", "value": "Seguridad" },
+    { "key": "report_year", "value": "2026" },
+    { "key": "report_months", "value": "2026-04" },
+    { "key": "evidence_file", "value": "C:\\\\ruta\\\\evidencia.jpg" }
+  ],
+  "item": [
+    {
+      "name": "Base",
+      "item": [
+        {
+          "name": "Root",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/" }
+        },
+        {
+          "name": "Health",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/health" }
+        },
+        {
+          "name": "Swagger UI",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/docs" }
+        },
+        {
+          "name": "OpenAPI JSON",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/docs/openapi.json" }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{first_name}}\",\n  \"apellido\": \"{{last_name}}\",\n  \"email\": \"{{email}}\",\n  \"contrasena\": \"{{password}}\",\n  \"telefono\": \"{{phone}}\",\n  \"captchaToken\": \"{{captcha_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/auth/register",
+            "description": "Registro publico. El rol enviado por clientes no se usa; el backend asigna Ciudadano."
+          }
+        },
+        {
+          "name": "Login",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"contrasena\": \"{{password}}\",\n  \"captchaToken\": \"{{captcha_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/auth/login",
+            "description": "Inicia sesion con correo y contrasena. Algunos clientes conservaran automaticamente la cookie de sesion."
+          }
+        },
+        {
+          "name": "Get Session",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/auth/session" }
+        },
+        {
+          "name": "Logout",
+          "request": { "method": "POST", "header": [], "url": "{{base_url}}/api/auth/logout" }
+        },
+        {
+          "name": "Forgot Password",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"captchaToken\": \"{{captcha_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Resend Verification",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/auth/resend-verification"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth Recovery And OAuth",
+      "item": [
+        {
+          "name": "Validate Reset Token",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/auth/reset-password/{{reset_token}}" }
+        },
+        {
+          "name": "Reset Password",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nuevaContrasena\": \"{{new_password}}\",\n  \"captchaToken\": \"{{captcha_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/auth/reset-password/{{reset_token}}"
+          }
+        },
+        {
+          "name": "Verify Account",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/auth/verify-account/{{verify_token}}" }
+        },
+        {
+          "name": "Google Auth Start",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/google",
+            "description": "Inicia el flujo OAuth en navegador. Normalmente se prueba desde UI o abriendo la URL manualmente."
+          }
+        },
+        {
+          "name": "Google Callback",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/auth/google/callback" }
+        },
+        {
+          "name": "Google Exchange Code",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{google_callback_code}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/auth/google/exchange"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalogs",
+      "item": [
+        {
+          "name": "List Estados",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/catalogs/estados" }
+        },
+        {
+          "name": "List Categorias",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/catalogs/categorias" }
+        },
+        {
+          "name": "List Comunas",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/locations/comunas" }
+        },
+        {
+          "name": "List Barrios By Comuna",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/locations/comunas/{{comuna_id}}/barrios" }
+        },
+        {
+          "name": "List Reacciones",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/reactions" }
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "List Featured Alerts",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/alerts/featured" }
+        },
+        {
+          "name": "List Alerts",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/alerts" }
+        },
+        {
+          "name": "Create Alert",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "titulo", "value": "Riesgo en la via principal", "type": "text" },
+                { "key": "descripcion", "value": "Se reporta una situacion que requiere atencion de la comunidad.", "type": "text" },
+                { "key": "categoria", "value": "{{category}}", "type": "text" },
+                { "key": "ubicacion", "value": "Calle 10 # 20-30", "type": "text" },
+                { "key": "prioridad", "value": "alta", "type": "text" },
+                { "key": "id_comuna", "value": "{{comuna_id}}", "type": "text" },
+                { "key": "id_barrio", "value": "{{barrio_id}}", "type": "text" },
+                { "key": "evidencias", "type": "file", "src": null }
+              ]
+            },
+            "url": "{{base_url}}/api/alerts"
+          }
+        },
+        {
+          "name": "Get Alert By Id",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/alerts/{{alert_id}}" }
+        },
+        {
+          "name": "Update Alert",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "titulo", "value": "Riesgo actualizado en la via principal", "type": "text" },
+                { "key": "descripcion", "value": "Se amplia el detalle del reporte.", "type": "text" },
+                { "key": "categoria", "value": "{{category}}", "type": "text" },
+                { "key": "ubicacion", "value": "Calle 10 # 20-30", "type": "text" },
+                { "key": "prioridad", "value": "media", "type": "text" },
+                { "key": "id_comuna", "value": "{{comuna_id}}", "type": "text" },
+                { "key": "id_barrio", "value": "{{barrio_id}}", "type": "text" },
+                { "key": "evidencias_eliminadas", "value": "1,2", "type": "text" },
+                { "key": "eliminar_todas_evidencias", "value": "false", "type": "text" },
+                { "key": "evidencias", "type": "file", "src": null }
+              ]
+            },
+            "url": "{{base_url}}/api/alerts/{{alert_id}}",
+            "description": "Todos los campos son opcionales salvo las reglas de negocio del estado. Ajusta o elimina campos antes de enviar."
+          }
+        },
+        {
+          "name": "Delete Alert",
+          "request": { "method": "DELETE", "header": [], "url": "{{base_url}}/api/alerts/{{alert_id}}" }
+        },
+        {
+          "name": "List Alert Reactions",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/alerts/{{alert_id}}/reactions" }
+        },
+        {
+          "name": "Toggle Alert Reaction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_reaccion\": {{reaction_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/alerts/{{alert_id}}/reactions"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alert Comments And Status",
+      "item": [
+        {
+          "name": "List Alert Comments",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/alerts/{{alert_id}}/comments" }
+        },
+        {
+          "name": "Create Alert Comment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"texto_comentario\": \"Comentario de prueba desde Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/alerts/{{alert_id}}/comments"
+          }
+        },
+        {
+          "name": "Update Alert Comment",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"texto_comentario\": \"Comentario actualizado desde Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/alerts/{{alert_id}}/comments/{{comment_id}}"
+          }
+        },
+        {
+          "name": "Delete Alert Comment",
+          "request": { "method": "DELETE", "header": [], "url": "{{base_url}}/api/alerts/{{alert_id}}/comments/{{comment_id}}" }
+        },
+        {
+          "name": "Update Alert Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_estado\": {{estado_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/alerts/{{alert_id}}/estado"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/profile" }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{first_name}}\",\n  \"apellido\": \"{{last_name}}\",\n  \"telefono\": \"{{phone}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/profile"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasenaActual\": \"{{password}}\",\n  \"nuevaContrasena\": \"{{new_password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/profile/change-password"
+          }
+        },
+        {
+          "name": "Delete Own Account",
+          "request": { "method": "DELETE", "header": [], "url": "{{base_url}}/api/profile" }
+        }
+      ]
+    },
+    {
+      "name": "Users Admin",
+      "item": [
+        {
+          "name": "List Users",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/users" }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{first_name}}\",\n  \"apellido\": \"{{last_name}}\",\n  \"email\": \"{{email}}\",\n  \"telefono\": \"{{phone}}\",\n  \"id_rol\": {{role_id}},\n  \"captchaToken\": \"{{captcha_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/users"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{first_name}}\",\n  \"apellido\": \"{{last_name}}\",\n  \"telefono\": \"{{phone}}\",\n  \"id_rol\": {{role_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "Change User Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/users/{{user_id}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles Admin",
+      "item": [
+        {
+          "name": "List Roles",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/roles" }
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_rol\": \"Moderador\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/roles"
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_rol\": \"Moderador Senior\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/api/roles/{{role_id}}"
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": { "method": "DELETE", "header": [], "url": "{{base_url}}/api/roles/{{role_id}}" }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Alert Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/reports/alerts?id_estado={{estado_id}}&id_comuna={{comuna_id}}&id_barrio={{barrio_id}}&year={{report_year}}&months={{report_months}}&category={{category}}"
+          }
+        },
+        {
+          "name": "Platform Stats",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/api/stats" }
+        }
+      ]
+    }
+  ]
+}
