@@ -2,15 +2,25 @@ import type { Application } from 'express';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-    isAllowedCorsOrigin,
-    isApiDocsEnabled,
-    isResponseTimingEnabled,
-    resolveRequestBodyLimit,
-    resolveAllowedCorsOrigins,
-    resolveSlowRequestThresholdMs,
+  isAllowedCorsOrigin,
+  isApiDocsEnabled,
+  isResponseTimingEnabled,
+  resolveAuthCookieOptions,
+  resolveRequestBodyLimit,
+  resolveAllowedCorsOrigins,
+  resolveSlowRequestThresholdMs,
 } from '../src/config/securityConfig';
 
 let app: Application;
+
+const restoreEnv = (key: string, value: string | undefined) => {
+    if (value === undefined) {
+        delete process.env[key];
+        return;
+    }
+
+    process.env[key] = value;
+};
 
 beforeAll(async () => {
     process.env.GOOGLE_CLIENT_ID ??= 'test-google-client-id';
@@ -164,5 +174,65 @@ describe('securityConfig', () => {
             isAllowedCorsOrigin('https://evil.example', allowedOrigins),
         ).toBe(false);
         expect(isAllowedCorsOrigin(undefined, allowedOrigins)).toBe(true);
+    });
+
+    it('emite cookies cross-site compatibles cuando la request llega por HTTPS', () => {
+        const previousNodeEnv = process.env.NODE_ENV;
+        const previousSameSite = process.env.AUTH_COOKIE_SAME_SITE;
+        const previousSecure = process.env.AUTH_COOKIE_SECURE;
+        const previousDomain = process.env.AUTH_COOKIE_DOMAIN;
+        const previousMaxAge = process.env.AUTH_COOKIE_MAX_AGE_MS;
+        delete process.env.AUTH_COOKIE_SAME_SITE;
+        delete process.env.AUTH_COOKIE_SECURE;
+        delete process.env.AUTH_COOKIE_DOMAIN;
+        delete process.env.AUTH_COOKIE_MAX_AGE_MS;
+        process.env.NODE_ENV = 'development';
+
+        const options = resolveAuthCookieOptions({
+            secure: false,
+            headers: {
+                'x-forwarded-proto': 'https',
+            },
+        } as any);
+
+        expect(options).toMatchObject({
+            httpOnly: true,
+            sameSite: 'none',
+            secure: true,
+            path: '/',
+            maxAge: 8 * 60 * 60 * 1000,
+        });
+
+        restoreEnv('NODE_ENV', previousNodeEnv);
+        restoreEnv('AUTH_COOKIE_SAME_SITE', previousSameSite);
+        restoreEnv('AUTH_COOKIE_SECURE', previousSecure);
+        restoreEnv('AUTH_COOKIE_DOMAIN', previousDomain);
+        restoreEnv('AUTH_COOKIE_MAX_AGE_MS', previousMaxAge);
+    });
+
+    it('respeta overrides explicitos de cookie y corrige SameSite=None sin Secure', () => {
+        const previousSameSite = process.env.AUTH_COOKIE_SAME_SITE;
+        const previousSecure = process.env.AUTH_COOKIE_SECURE;
+        const previousDomain = process.env.AUTH_COOKIE_DOMAIN;
+        const previousMaxAge = process.env.AUTH_COOKIE_MAX_AGE_MS;
+
+        process.env.AUTH_COOKIE_SAME_SITE = 'none';
+        process.env.AUTH_COOKIE_SECURE = 'false';
+        process.env.AUTH_COOKIE_DOMAIN = 'api.example.com';
+        process.env.AUTH_COOKIE_MAX_AGE_MS = '60000';
+
+        const options = resolveAuthCookieOptions();
+
+        expect(options).toMatchObject({
+            sameSite: 'none',
+            secure: true,
+            domain: 'api.example.com',
+            maxAge: 60000,
+        });
+
+        restoreEnv('AUTH_COOKIE_SAME_SITE', previousSameSite);
+        restoreEnv('AUTH_COOKIE_SECURE', previousSecure);
+        restoreEnv('AUTH_COOKIE_DOMAIN', previousDomain);
+        restoreEnv('AUTH_COOKIE_MAX_AGE_MS', previousMaxAge);
     });
 });
