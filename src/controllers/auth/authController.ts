@@ -14,30 +14,16 @@ import {
   requireRequestUser,
   revokeRequestSession,
 } from "../../services/auth/authSessionService";
+import { resolveAuthCookieOptions } from "../../config/securityConfig";
 
-const buildAuthCookieOptions = () => {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  return {
-    httpOnly: true,
-    sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: 8 * 60 * 60 * 1000,
-  };
+const setSessionCookie = (req: Request, res: Response, token: string) => {
+  res.cookie(getAuthCookieName(), token, resolveAuthCookieOptions(req));
 };
 
-const setSessionCookie = (res: Response, token: string) => {
-  res.cookie(getAuthCookieName(), token, buildAuthCookieOptions());
-};
-
-const clearSessionCookie = (res: Response) => {
-  const cookieOptions = buildAuthCookieOptions();
+const clearSessionCookie = (req: Request, res: Response) => {
+  const cookieOptions = resolveAuthCookieOptions(req);
   res.clearCookie(getAuthCookieName(), {
-    httpOnly: true,
-    sameSite: cookieOptions.sameSite,
-    secure: cookieOptions.secure,
-    path: cookieOptions.path,
+    ...cookieOptions,
   });
 };
 
@@ -48,7 +34,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   const result = await loginUser(req, req.body ?? {});
-  setSessionCookie(res, result.token);
+  setSessionCookie(req, res, result.token);
   res.json({
     message: result.message,
     user: result.user,
@@ -60,7 +46,7 @@ export const exchangeGoogleCode = async (
   res: Response
 ): Promise<void> => {
   const result = await exchangeGoogleCallbackCode(req.body ?? {});
-  setSessionCookie(res, result.token);
+  setSessionCookie(req, res, result.token);
   res.json({ message: "Sesion iniciada correctamente" });
 };
 
@@ -74,7 +60,7 @@ export const getSession = async (
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
   await revokeRequestSession(req);
-  clearSessionCookie(res);
+  clearSessionCookie(req, res);
   res.json({ message: "Sesion cerrada correctamente" });
 };
 
