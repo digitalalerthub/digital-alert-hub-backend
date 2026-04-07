@@ -37,6 +37,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   setSessionCookie(req, res, result.token);
   res.json({
     message: result.message,
+    token: result.token,
     user: result.user,
   });
 };
@@ -47,7 +48,10 @@ export const exchangeGoogleCode = async (
 ): Promise<void> => {
   const result = await exchangeGoogleCallbackCode(req.body ?? {});
   setSessionCookie(req, res, result.token);
-  res.json({ message: "Sesion iniciada correctamente" });
+  res.json({
+    message: "Sesion iniciada correctamente",
+    token: result.token,
+  });
 };
 
 export const getSession = async (
