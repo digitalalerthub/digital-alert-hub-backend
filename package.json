@@ -8,6 +8,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "db:assert-safe": "node scripts/assert-safe-db.mjs",
+    "db:create": "node scripts/ensure-local-db.mjs",
     "db:migrate": "sequelize-cli db:migrate",
     "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
     "db:seed:all": "sequelize-cli db:seed:all",

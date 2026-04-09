@@ -1,9 +1,78 @@
 "use strict";
 
+const tableExists = async (queryInterface, tableName, transaction) => {
+  try {
+    await queryInterface.describeTable(tableName, { transaction });
+    return true;
+  } catch (error) {
+    const originalCode = error?.original?.code;
+    const message = String(error?.message || "");
+
+    if (originalCode === "42P01" || message.includes("No description found for")) {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+const indexExists = async (queryInterface, tableName, indexName, transaction) => {
+  if (!(await tableExists(queryInterface, tableName, transaction))) {
+    return false;
+  }
+
+  const indexes = await queryInterface.showIndex(tableName, { transaction });
+  return indexes.some((index) => index.name === indexName);
+};
+
+const createTableIfMissing = async (
+  queryInterface,
+  tableName,
+  attributes,
+  transaction
+) => {
+  if (await tableExists(queryInterface, tableName, transaction)) {
+    return false;
+  }
+
+  await queryInterface.createTable(tableName, attributes, { transaction });
+  return true;
+};
+
+const addIndexIfMissing = async (
+  queryInterface,
+  tableName,
+  fields,
+  indexOptions,
+  transaction
+) => {
+  if (!(await tableExists(queryInterface, tableName, transaction))) {
+    return;
+  }
+
+  if (await indexExists(queryInterface, tableName, indexOptions.name, transaction)) {
+    return;
+  }
+
+  await queryInterface.addIndex(tableName, fields, {
+    ...indexOptions,
+    transaction,
+  });
+};
+
+const dropTableIfExists = async (queryInterface, tableName, transaction) => {
+  if (!(await tableExists(queryInterface, tableName, transaction))) {
+    return;
+  }
+
+  await queryInterface.dropTable(tableName, { transaction });
+};
+
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.sequelize.transaction(async (transaction) => {
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "roles",
         {
           id_rol: {
@@ -17,16 +86,22 @@ module.exports = {
             allowNull: false,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("roles", ["nombre_rol"], {
-        name: "roles_nombre_rol_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "roles",
+        ["nombre_rol"],
+        {
+          name: "roles_nombre_rol_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "usuarios",
         {
           id_usuario: {
@@ -114,21 +189,32 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("usuarios", ["email"], {
-        name: "usuarios_email_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "usuarios",
+        ["email"],
+        {
+          name: "usuarios_email_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.addIndex("usuarios", ["id_rol"], {
-        name: "idx_usuarios_id_rol",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "usuarios",
+        ["id_rol"],
+        {
+          name: "idx_usuarios_id_rol",
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "estados",
         {
           id_estado: {
@@ -152,16 +238,22 @@ module.exports = {
             defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("estados", ["nombre_estado"], {
-        name: "estados_nombre_estado_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "estados",
+        ["nombre_estado"],
+        {
+          name: "estados_nombre_estado_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "reacciones",
         {
           id_reaccion: {
@@ -201,16 +293,22 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("reacciones", ["tipo"], {
-        name: "reacciones_tipo_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "reacciones",
+        ["tipo"],
+        {
+          name: "reacciones_tipo_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "categorias",
         {
           id_categoria: {
@@ -246,16 +344,22 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("categorias", ["nombre_categoria"], {
-        name: "categorias_nombre_categoria_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "categorias",
+        ["nombre_categoria"],
+        {
+          name: "categorias_nombre_categoria_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "comunas",
         {
           id_comuna: {
@@ -268,16 +372,22 @@ module.exports = {
             allowNull: false,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("comunas", ["nombre"], {
-        name: "comunas_nombre_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "comunas",
+        ["nombre"],
+        {
+          name: "comunas_nombre_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "barrios",
         {
           id_barrio: {
@@ -301,16 +411,22 @@ module.exports = {
             allowNull: false,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("barrios", ["id_comuna", "nombre"], {
-        name: "barrios_id_comuna_nombre_key",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "barrios",
+        ["id_comuna", "nombre"],
+        {
+          name: "barrios_id_comuna_nombre_key",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "alertas",
         {
           id_alerta: {
@@ -412,30 +528,51 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("alertas", ["id_estado"], {
-        name: "idx_alertas_id_estado",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "alertas",
+        ["id_estado"],
+        {
+          name: "idx_alertas_id_estado",
+        },
+        transaction
+      );
 
-      await queryInterface.addIndex("alertas", ["id_categoria"], {
-        name: "idx_alertas_id_categoria",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "alertas",
+        ["id_categoria"],
+        {
+          name: "idx_alertas_id_categoria",
+        },
+        transaction
+      );
 
-      await queryInterface.addIndex("alertas", ["id_comuna"], {
-        name: "idx_alertas_id_comuna",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "alertas",
+        ["id_comuna"],
+        {
+          name: "idx_alertas_id_comuna",
+        },
+        transaction
+      );
 
-      await queryInterface.addIndex("alertas", ["id_barrio"], {
-        name: "idx_alertas_id_barrio",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "alertas",
+        ["id_barrio"],
+        {
+          name: "idx_alertas_id_barrio",
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "evidencias",
         {
           id_evidencia: {
@@ -485,15 +622,21 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("evidencias", ["id_alerta", "created_at"], {
-        name: "idx_evidencias_id_alerta_created_at",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "evidencias",
+        ["id_alerta", "created_at"],
+        {
+          name: "idx_evidencias_id_alerta_created_at",
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "comentarios",
         {
           id_comentario: {
@@ -549,15 +692,21 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("comentarios", ["id_alerta", "created_at"], {
-        name: "idx_comentarios_id_alerta_created_at",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "comentarios",
+        ["id_alerta", "created_at"],
+        {
+          name: "idx_comentarios_id_alerta_created_at",
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "alertas_reacciones",
         {
           id_alerta_reaccion: {
@@ -607,21 +756,32 @@ module.exports = {
             defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("alertas_reacciones", ["id_alerta", "id_usuario"], {
-        name: "alertas_reacciones_id_alerta_id_usuario",
-        unique: true,
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "alertas_reacciones",
+        ["id_alerta", "id_usuario"],
+        {
+          name: "alertas_reacciones_id_alerta_id_usuario",
+          unique: true,
+        },
+        transaction
+      );
 
-      await queryInterface.addIndex("alertas_reacciones", ["id_alerta", "id_reaccion"], {
-        name: "alertas_reacciones_id_alerta_id_reaccion",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "alertas_reacciones",
+        ["id_alerta", "id_reaccion"],
+        {
+          name: "alertas_reacciones_id_alerta_id_reaccion",
+        },
+        transaction
+      );
 
-      await queryInterface.createTable(
+      await createTableIfMissing(
+        queryInterface,
         "historial_estado",
         {
           id_historial: {
@@ -672,30 +832,35 @@ module.exports = {
             allowNull: true,
           },
         },
-        { transaction }
+        transaction
       );
 
-      await queryInterface.addIndex("historial_estado", ["id_alerta", "created_at"], {
-        name: "idx_historial_estado_id_alerta_created_at",
-        transaction,
-      });
+      await addIndexIfMissing(
+        queryInterface,
+        "historial_estado",
+        ["id_alerta", "created_at"],
+        {
+          name: "idx_historial_estado_id_alerta_created_at",
+        },
+        transaction
+      );
     });
   },
 
   async down(queryInterface) {
     await queryInterface.sequelize.transaction(async (transaction) => {
-      await queryInterface.dropTable("historial_estado", { transaction });
-      await queryInterface.dropTable("alertas_reacciones", { transaction });
-      await queryInterface.dropTable("comentarios", { transaction });
-      await queryInterface.dropTable("evidencias", { transaction });
-      await queryInterface.dropTable("alertas", { transaction });
-      await queryInterface.dropTable("barrios", { transaction });
-      await queryInterface.dropTable("comunas", { transaction });
-      await queryInterface.dropTable("categorias", { transaction });
-      await queryInterface.dropTable("reacciones", { transaction });
-      await queryInterface.dropTable("estados", { transaction });
-      await queryInterface.dropTable("usuarios", { transaction });
-      await queryInterface.dropTable("roles", { transaction });
+      await dropTableIfExists(queryInterface, "historial_estado", transaction);
+      await dropTableIfExists(queryInterface, "alertas_reacciones", transaction);
+      await dropTableIfExists(queryInterface, "comentarios", transaction);
+      await dropTableIfExists(queryInterface, "evidencias", transaction);
+      await dropTableIfExists(queryInterface, "alertas", transaction);
+      await dropTableIfExists(queryInterface, "barrios", transaction);
+      await dropTableIfExists(queryInterface, "comunas", transaction);
+      await dropTableIfExists(queryInterface, "categorias", transaction);
+      await dropTableIfExists(queryInterface, "reacciones", transaction);
+      await dropTableIfExists(queryInterface, "estados", transaction);
+      await dropTableIfExists(queryInterface, "usuarios", transaction);
+      await dropTableIfExists(queryInterface, "roles", transaction);
     });
   },
 };

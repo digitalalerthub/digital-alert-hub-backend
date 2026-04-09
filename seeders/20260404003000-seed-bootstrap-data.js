@@ -17,6 +17,20 @@ const SAMPLE_ALERT_LOCATION = "Carrera 10 con Calle 12, frente al parque princip
 const SAMPLE_ALERT_EVIDENCE_URL =
   "https://res.cloudinary.com/demo/image/upload/sample.jpg";
 
+const syncSequence = async (queryInterface, tableName, columnName, transaction) => {
+  await queryInterface.sequelize.query(
+    `
+      SELECT setval(
+        pg_get_serial_sequence('${tableName}', '${columnName}'),
+        COALESCE((SELECT MAX(${columnName}) FROM ${tableName}), 0) + 1,
+        false
+      )
+      WHERE pg_get_serial_sequence('${tableName}', '${columnName}') IS NOT NULL;
+    `,
+    { transaction }
+  );
+};
+
 const normalizeBaseUrl = (value) => {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -49,6 +63,11 @@ const buildSetPasswordLink = (user) => {
 module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.transaction(async (transaction) => {
+      await syncSequence(queryInterface, "usuarios", "id_usuario", transaction);
+      await syncSequence(queryInterface, "alertas", "id_alerta", transaction);
+      await syncSequence(queryInterface, "evidencias", "id_evidencia", transaction);
+      await syncSequence(queryInterface, "historial_estado", "id_historial", transaction);
+
       const [adminRoleRows] = await queryInterface.sequelize.query(
         `
           SELECT id_rol, nombre_rol

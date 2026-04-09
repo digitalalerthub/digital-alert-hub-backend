@@ -1,13 +1,14 @@
-.PHONY: help install build test dev start db-check db-migrate db-seed db-reset bootstrap setup
+.PHONY: help install build test dev start db-create db-check db-migrate db-seed db-reset bootstrap setup
 
 help:
 	@echo "Targets disponibles:"
 	@echo "  make install      Instala dependencias"
 	@echo "  make build        Compila TypeScript"
 	@echo "  make test         Ejecuta pruebas"
-	@echo "  make db-check     Verifica que el target de BD sea local"
-	@echo "  make db-migrate   Ejecuta migrations"
-	@echo "  make db-seed      Ejecuta seeders"
+	@echo "  make db-create    Crea la base local configurada en .env si aun no existe"
+	@echo "  make db-check     Verifica que el target de BD sea seguro para reset/undo"
+	@echo "  make db-migrate   Ejecuta migrations usando DATABASE_URL o credenciales DB_*"
+	@echo "  make db-seed      Ejecuta seeders idempotentes"
 	@echo "  make bootstrap    Ejecuta migrations y seeders"
 	@echo "  make setup        Instala, compila y bootstrapea la base"
 	@echo "  make dev          Inicia el backend en desarrollo"
@@ -24,13 +25,16 @@ build:
 test:
 	npm test
 
+db-create:
+	npm run db:create
+
 db-check:
 	npm run db:assert-safe
 
-db-migrate: db-check
+db-migrate: db-create
 	npm run db:migrate
 
-db-seed: db-check
+db-seed:
 	npm run db:seed:all
 
 bootstrap: db-migrate db-seed

@@ -28,7 +28,7 @@ Variables relevantes:
 ```env
 PORT=
 NODE_ENV=
-DATABASE_URL=
+DATABASE_URL=postgresql://USER:PASSWORD@YOUR-NEON-HOST/neondb?sslmode=require
 DB_HOST=
 DB_PORT=
 DB_NAME=

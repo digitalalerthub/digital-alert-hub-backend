@@ -80,16 +80,16 @@ NODE_ENV=development
 BACKEND_URL=http://localhost:4000
 
 # Base de datos
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
-DB_SSL=true
+DATABASE_URL=postgresql://USER:PASSWORD@YOUR-NEON-HOST/neondb?sslmode=require
+DB_SSL=false
 DB_SYNC=false
 DB_LOG_SQL=false
 
 # Alternativa si no usas DATABASE_URL
-DB_HOST=
+DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=
-DB_USER=
+DB_NAME=digital_alert_hub
+DB_USER=postgres
 DB_PASSWORD=
 
 # Autenticacion
@@ -138,6 +138,8 @@ SEED_ADMIN_LASTNAME=Principal
 SEED_ADMIN_PHONE=3000000000
 ```
 
+Si usas Neon o cualquier PostgreSQL remoto con SSL, activa `DB_SSL=true` o define `DATABASE_URL` con `sslmode=require`.
+
 Generar `JWT_SECRET`:
 
 ```bash
@@ -158,6 +160,27 @@ El flujo recomendado de inicializacion es:
 npm run db:migrate
 npm run db:seed:all
 ```
+
+Si trabajas con PostgreSQL local, `npm run db:migrate` y `make db-migrate` crean primero la base configurada en `.env` si aun no existe.
+
+Ese flujo solo crea la base de datos. El rol/usuario de PostgreSQL (`DB_USER`) debe existir previamente en tu instalacion local.
+
+Si la migracion falla por una base que ya tenga objetos creados fuera de `sequelize-cli`, existe un respaldo SQL en `sql/fallback-bootstrap.sql`.
+
+Ese archivo crea el esquema base con `IF NOT EXISTS`, inserta catalogos minimos y registra la migration inicial en `SequelizeMeta` para evitar drift entre la base y `sequelize-cli`.
+
+Flujo de recuperacion recomendado:
+
+```bash
+# 1. ejecutar el SQL manualmente desde PostgreSQL
+# 2. verificar estado de migrations
+npx sequelize-cli db:migrate:status
+
+# 3. si necesitas datos bootstrap de ejemplo
+npm run db:seed:all
+```
+
+`sequelize-cli` prioriza `DATABASE_URL`, asi que un clon nuevo queda apuntando a Neon en cuanto completes esa variable en tu `.env`.
 
 La app ya no debe depender de una base precargada manualmente para arrancar correctamente.
 
@@ -182,6 +205,8 @@ Seeder de bootstrap:
 - historial inicial de la alerta
 
 El admin sembrado queda listo para usar el flujo existente de `set_password`. Si `FRONTEND_URL` y `JWT_SECRET` estan configurados, el seeder imprime en consola el enlace para definir la contrasena en el primer ingreso.
+
+Los seeders son idempotentes: si los registros base ya existen en la base de datos, no los actualizan ni los duplican.
 
 ## Arranque del proyecto
 
@@ -246,6 +271,7 @@ Targets disponibles:
 | `make install` | Instala dependencias |
 | `make build` | Compila TypeScript |
 | `make test` | Ejecuta pruebas |
+| `make db-create` | Crea la base local configurada en `.env` si no existe |
 | `make db-migrate` | Ejecuta migrations |
 | `make db-seed` | Ejecuta seeders |
 | `make bootstrap` | Ejecuta migrations y seeders |
@@ -261,10 +287,15 @@ make setup
 make dev
 ```
 
+`make setup` deja listo el backend: dependencias instaladas, build generado, base creada si faltaba, migrations aplicadas y seeders ejecutados.
+
+`make dev` es el paso que deja el servidor corriendo.
+
 Nota para Windows:
 
 - este entorno no trae `make` instalado por defecto;
 - puedes usar Git Bash con `make`, `mingw32-make`, o ejecutar directamente los scripts `npm run ...`.
+- `make db-reset` mantiene la validacion de seguridad para evitar revertir por error una base remota; `make db-migrate`, `make db-seed` y `make bootstrap` ya pueden usarse con Neon.
 
 ## Correos
 
